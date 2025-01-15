@@ -1,0 +1,2 @@
+# pede
+A virtual pedestal
