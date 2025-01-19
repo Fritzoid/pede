@@ -1,4 +1,4 @@
-use bevy::color::palettes::css::LIGHT_GREEN;
+use bevy::color::palettes::css::{LIGHT_GREEN, RED};
 use bevy::prelude::*;
 use bevy::window::WindowMode;
 use bevy_egui::EguiPlugin;
@@ -40,8 +40,22 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(500.0, 500.0).subdivisions(10))),
         MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
+    ));
+
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid { half_size: Vec3::new(1.0, 10.0, 1.0) })),
+        MeshMaterial3d(materials.add(Color::from(RED))),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+    ));
+
+    commands.spawn((
+        PointLight {
+            color: Color::WHITE,
+            ..default()
+        },
+        Transform::from_xyz(0.0, 200.0, 0.0)
     ));
 
     commands.spawn((
@@ -57,8 +71,6 @@ fn setup(
             .looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
         GameCamera,
     ));
-
-    
 }
 
 pub fn ui_system(mut contexts: EguiContexts) {
