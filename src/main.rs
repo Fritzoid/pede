@@ -1,3 +1,4 @@
+use bevy::color::palettes::css::LIGHT_GREEN;
 use bevy::prelude::*;
 use bevy::window::WindowMode;
 use bevy_egui::EguiPlugin;
@@ -10,6 +11,12 @@ use std::f32::consts::PI;
 struct GameCamera;
 
 fn main() {
+
+    match gstreamer::init() {
+        Ok(_) => println!("GStreamer initialized"),
+        Err(e) => println!("Error initializing GStreamer: {:?}", e),
+    }
+
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -33,6 +40,11 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
+        MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
+    ));
+
+    commands.spawn((
         Camera3d::default(), 
         PanOrbitCamera { 
             pitch_lower_limit: Some(PI/6.0),
@@ -41,23 +53,12 @@ fn setup(
             zoom_upper_limit: Some(500.0),
             ..default() 
         },
-        Transform {
-            translation: Vec3::new(350.0, 180.0, 350.0),
-            rotation: Quat::IDENTITY,
-            scale: Vec3::ONE,
-        }.looking_at(Vec3::ZERO, -Vec3::Z),
+        Transform::from_xyz(0.0, 0.0, 14.0)
+            .looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
         GameCamera,
     ));
 
-    commands.spawn((
-        DirectionalLight {
-            color: Color::WHITE,
-            illuminance: 10000.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_translation(Vec3::new(350.0, 350.0, 350.0)),
-    ));
+    
 }
 
 pub fn ui_system(mut contexts: EguiContexts) {
