@@ -7,6 +7,8 @@ use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_panorbit_camera::PanOrbitCamera;
 use std::f32::consts::PI;
 
+mod buildings;
+
 #[derive(Component)]
 struct GameCamera;
 
@@ -44,18 +46,14 @@ fn setup(
         MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
     ));
 
+    for _ in 0..250 {
+        buildings::spawn_random_building(&mut commands, &mut meshes, &mut materials);
+    }
+
     commands.spawn((
         Mesh3d(meshes.add(Cuboid { half_size: Vec3::new(1.0, 10.0, 1.0) })),
         MeshMaterial3d(materials.add(Color::from(RED))),
         Transform::from_xyz(0.0, 0.0, 0.0),
-    ));
-
-    commands.spawn((
-        PointLight {
-            color: Color::WHITE,
-            ..default()
-        },
-        Transform::from_xyz(0.0, 200.0, 0.0)
     ));
 
     commands.spawn((
@@ -67,7 +65,7 @@ fn setup(
             zoom_upper_limit: Some(500.0),
             ..default() 
         },
-        Transform::from_xyz(0.0, 0.0, 14.0)
+        Transform::from_xyz(0.0, 0.0, 150.0)
             .looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
         GameCamera,
     ));
