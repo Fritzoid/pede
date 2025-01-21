@@ -14,10 +14,12 @@ struct GameCamera;
 
 fn main() {
 
+    /* 
     match gstreamer::init() {
         Ok(_) => println!("GStreamer initialized"),
         Err(e) => println!("Error initializing GStreamer: {:?}", e),
     }
+    */
 
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
