@@ -43,20 +43,43 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 300.0,
+        ..default()
+    });
+
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(500.0, 500.0).subdivisions(10))),
-        MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
+        DirectionalLight {
+            illuminance: 3_000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::default().looking_to(Vec3::new(-1.0, -0.7, -1.0), Vec3::X),
+    ));
+    // Sky
+    commands.spawn((
+        Mesh3d(meshes.add(Sphere::default())),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            unlit: true,
+            base_color: Color::linear_rgb(0.1, 0.6, 1.0),
+            ..default()
+        })),
+        Transform::default().with_scale(Vec3::splat(-4000.0)),
     ));
 
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
+        MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
+        Transform::from_xyz(0.0, -0.65, 0.0)
+    ));
+
+    spawn_trees(&mut meshes, &mut materials, &mut commands);
+/*    
     for _ in 0..250 {
         buildings::spawn_random_building(&mut commands, &mut meshes, &mut materials);
     }
-
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid { half_size: Vec3::new(1.0, 10.0, 1.0) })),
-        MeshMaterial3d(materials.add(Color::from(RED))),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-    ));
+*/
 
     commands.spawn((
         Camera3d::default(), 
@@ -67,11 +90,60 @@ fn setup(
             zoom_upper_limit: Some(500.0),
             ..default() 
         },
-        Transform::from_xyz(0.0, 0.0, 150.0)
+        Transform::from_xyz(0.0, 0.0, 15.0)
             .looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
         GameCamera,
     ));
 }
+
+fn spawn_trees(
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    commands: &mut Commands,
+) {
+    const N_TREES: usize = 30;
+    let capsule = meshes.add(Capsule3d::default());
+    let sphere = meshes.add(Sphere::default());
+    let leaves = materials.add(Color::linear_rgb(0.0, 1.0, 0.0));
+    let trunk = materials.add(Color::linear_rgb(0.4, 0.2, 0.2));
+
+    let mut spawn_with_offset = |offset: f32| {
+        for i in 0..N_TREES {
+            let pos = race_track_pos(
+                offset,
+                (i as f32) / (N_TREES as f32) * std::f32::consts::PI * 2.0,
+            );
+            let [x, z] = pos.into();
+            commands.spawn((
+                Mesh3d(sphere.clone()),
+                MeshMaterial3d(leaves.clone()),
+                Transform::from_xyz(x, -0.3, z).with_scale(Vec3::splat(0.3)),
+            ));
+            commands.spawn((
+                Mesh3d(capsule.clone()),
+                MeshMaterial3d(trunk.clone()),
+                Transform::from_xyz(x, -0.5, z).with_scale(Vec3::new(0.05, 0.3, 0.05)),
+            ));
+        }
+    };
+    spawn_with_offset(0.07);
+    spawn_with_offset(-0.07);
+}
+
+fn race_track_pos(offset: f32, t: f32) -> Vec2 {
+    let x_tweak = 2.0;
+    let y_tweak = 3.0;
+    let scale = 8.0;
+    let x0 = ops::sin(x_tweak * t);
+    let y0 = ops::cos(y_tweak * t);
+    let dx = x_tweak * ops::cos(x_tweak * t);
+    let dy = y_tweak * -ops::sin(y_tweak * t);
+    let dl = ops::hypot(dx, dy);
+    let x = x0 + offset * dy / dl;
+    let y = y0 - offset * dx / dl;
+    Vec2::new(x, y) * scale
+}
+
 
 pub fn ui_system(mut contexts: EguiContexts) {
     let ctx = contexts.ctx_mut();
