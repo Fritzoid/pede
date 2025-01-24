@@ -2,6 +2,11 @@ use bevy::color::palettes::css::{LIGHT_GREEN, RED};
 use bevy::prelude::*;
 use bevy::window::WindowMode;
 use bevy::render::camera::Viewport;
+use bevy::render::render_resource::Extent3d;
+use bevy::render::render_resource::TextureDimension;
+use bevy::render::render_resource::TextureFormat;
+use bevy::render::render_resource::TextureUsages;
+use bevy::render::render_asset::RenderAssetUsages;
 use bevy::window::WindowResized;
 use bevy_egui::EguiPlugin;
 use bevy_egui::{egui, EguiContexts};
@@ -45,6 +50,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
@@ -98,24 +104,14 @@ fn setup(
         GameCamera,
     ));
 
-     // Minimap Camera
-     commands.spawn((
-        Transform::from_translation(Vec3::new(1.0, 1.5, 4.0)),
-        Camera {
-            // Renders the minimap camera after the main camera, so it is rendered on top
-            order: 1,
-            // Don't clear on the second camera because the first camera already cleared the window
-            clear_color: ClearColorConfig::None,
-            ..default()
-        },
-        PanOrbitCamera::default(),
-        MinimapCamera,
-    ));
-
+    spawn_radar(&mut meshes, &mut materials, &mut commands, images);
 }
 
 #[derive(Component)]
-struct MinimapCamera;
+struct RadarCamera;
+
+#[derive(Component)]
+struct RadarCameraToTexture;
 
 fn spawn_trees(
     meshes: &mut Assets<Mesh>,
@@ -165,10 +161,61 @@ fn race_track_pos(offset: f32, t: f32) -> Vec2 {
     Vec2::new(x, y) * scale
 }
 
+fn spawn_radar(
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    commands: &mut Commands,
+    mut images: ResMut<Assets<Image>>,
+) {
+    let radar_body = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.1, 0.5), ..default() } );
+    let radar_body_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
+    commands.spawn((Mesh3d(radar_body), MeshMaterial3d(radar_body_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
+
+    let size = Extent3d {
+        width: 512,
+        height: 512,
+        ..default()
+    };
+
+    // This is the texture that will be rendered to.
+    let mut image = Image::new_fill(
+        size,
+        TextureDimension::D2,
+        &[0, 0, 0, 0],
+        TextureFormat::Bgra8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    // You need to set these texture usage flags in order to use the image as a render target
+    image.texture_descriptor.usage =
+        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
+
+    let image_handle = images.add(image);
+
+    let radar_cam_pos = Vec3::new(0.0, 1.0, 0.0);
+    let radar_cam_lookat = Vec3::new(0., 1.0, -10.);
+    // Radar Cameras
+     commands.spawn((
+        Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z)
+            .looking_at(Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z), Vec3::Y),
+        Camera3d::default(),
+        RadarCamera,
+    ));
+    commands.spawn((
+        Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z)
+            .looking_at(Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z), Vec3::Y),
+        Camera {
+            target: image_handle.clone().into(),
+            order: 2,
+            ..default()
+        },
+        RadarCameraToTexture,
+    ));
+}
+
 fn set_camera_viewports(
     windows: Query<&Window>,
     mut resize_events: EventReader<WindowResized>,
-    mut right_camera: Query<&mut Camera, With<MinimapCamera>>,
+    mut right_camera: Query<&mut Camera, With<RadarCamera>>,
 ) {
     for resize_event in resize_events.read() {
         let window = windows.get(resize_event.window).unwrap();
@@ -179,6 +226,7 @@ fn set_camera_viewports(
             physical_size: UVec2::new(size, size),
             ..default()
         });
+        right_camera.order = 1
     }
 }
 
