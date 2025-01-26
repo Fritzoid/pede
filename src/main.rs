@@ -1,5 +1,5 @@
-use bevy::color::palettes::css::{LIGHT_GREEN, RED};
 use bevy::prelude::*;
+use bevy::color::palettes::css::LIGHT_GREEN;
 use bevy::window::WindowMode;
 use bevy::render::camera::Viewport;
 use bevy::render::render_resource::Extent3d;
@@ -13,15 +13,33 @@ use bevy_egui::{egui, EguiContexts};
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_panorbit_camera::PanOrbitCamera;
 use std::f32::consts::PI;
+use std::process::{Stdio, ChildStdin, Command};
+use std::io::Write;
+use std::thread;
+use std::time::Duration;    
 
 mod buildings;
 
 #[derive(Component)]
 struct GameCamera;
 
+#[derive(Resource)]
+struct CameraRenderTexture {
+    handle: Handle<Image>,
+    ffmpeg_stdin: Option<ChildStdin>,
+}
+
 fn main() {
 
-    /* 
+    let _mediamtx = Command::new("mediamtx.exe")
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()
+    .expect("Failed to start mediamtx.exe");
+
+    thread::sleep(Duration::from_secs(5));
+    /*
+
     match gstreamer::init() {
         Ok(_) => println!("GStreamer initialized"),
         Err(e) => println!("Error initializing GStreamer: {:?}", e),
@@ -37,11 +55,13 @@ fn main() {
         }),
         ..default()
     }))
+    .insert_resource(Time::<Fixed>::from_seconds(1.0/25.0))
     .add_plugins(EguiPlugin)
     .add_plugins(PanOrbitCameraPlugin)
     .add_systems(Startup, setup)
     .add_systems(Update, ui_system)
     .add_systems(Update, set_camera_viewports)
+    .add_systems(FixedUpdate, stream_frames)
     .run();
 }
 
@@ -104,7 +124,52 @@ fn setup(
         GameCamera,
     ));
 
-    spawn_radar(&mut meshes, &mut materials, &mut commands, images);
+    let image = spawn_radar(&mut meshes, &mut materials, &mut commands, images);
+
+    let mut ffmpeg = Command::new("ffmpeg")
+        .args([
+            "-y",                      // Overwrite output files
+            "-f", "rawvideo",          // Input format is raw video
+            "-pixel_format", "rgba",   // Pixel format
+            "-video_size", "1280x720", // Replace with your texture size
+            "-framerate", "30",        // Replace with your target framerate
+            "-i", "pipe:0",            // Read from stdin
+            "-c:v", "libx264",         // Encode to H.264
+            "-pix_fmt", "yuv420p",     // Output pixel format
+            "-c:a", "aac",
+            "-preset", "ultrafast",    // Encoding preset
+            "myvideo.mp4",             // Output file
+//            "-f", "rtsp",              // Output format
+//            "rtsp://localhost:8554/live", // RTSP output URL
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to start FFmpeg");
+
+    let ffmpeg_stdin = ffmpeg.stdin.take().expect("Failed to capture FFmpeg stdin");
+    thread::sleep(Duration::from_secs(5));
+
+    commands.insert_resource(CameraRenderTexture {
+        handle: image,
+        ffmpeg_stdin: Some(ffmpeg_stdin),
+    });
+
+     // Spawn a thread to read and display FFmpeg logs
+     if let Some(stderr) = ffmpeg.stderr.take() {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                match line {
+                    Ok(log) => println!("FFmpeg Log: {}", log),
+                    Err(e) => eprintln!("Error reading FFmpeg stderr: {}", e),
+                }
+            }
+        });
+    }
+
 }
 
 #[derive(Component)]
@@ -166,14 +231,15 @@ fn spawn_radar(
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
     mut images: ResMut<Assets<Image>>,
-) {
+) -> Handle<Image> {
     let radar_body = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.1, 0.5), ..default() } );
     let radar_body_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     commands.spawn((Mesh3d(radar_body), MeshMaterial3d(radar_body_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
 
     let size = Extent3d {
-        width: 512,
-        height: 512,
+        width: 1280,
+        height: 720,
+        depth_or_array_layers: 1,
         ..default()
     };
 
@@ -182,12 +248,12 @@ fn spawn_radar(
         size,
         TextureDimension::D2,
         &[0, 0, 0, 0],
-        TextureFormat::Bgra8UnormSrgb,
+        TextureFormat::Rgba8Unorm,
         RenderAssetUsages::default(),
     );
     // You need to set these texture usage flags in order to use the image as a render target
     image.texture_descriptor.usage =
-        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
+        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
 
     let image_handle = images.add(image);
 
@@ -205,11 +271,13 @@ fn spawn_radar(
             .looking_at(Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z), Vec3::Y),
         Camera {
             target: image_handle.clone().into(),
-            order: 2,
+            order: 1,
             ..default()
         },
         RadarCameraToTexture,
     ));
+
+    image_handle
 }
 
 fn set_camera_viewports(
@@ -227,6 +295,40 @@ fn set_camera_viewports(
             ..default()
         });
         right_camera.order = 1
+    }
+}
+
+fn stream_frames(
+    textures: ResMut<Assets<Image>>,
+    mut texture_resource: ResMut<CameraRenderTexture>,
+    mut camera: Query<&Camera, With<RadarCameraToTexture>>,
+) {
+    let new_image = &camera.single().target.as_image();
+    let really_image = textures.get(new_image.unwrap());
+
+    if let (Some(image), Some(really_image)) = (textures.get(&texture_resource.handle), really_image) {
+        if let Some(ffmpeg_stdin) = &mut texture_resource.ffmpeg_stdin {
+            // Access the raw pixel data of the texture
+//            let data = &image.data;
+            let data = &really_image.data;
+            
+            // check that data is all zeroas
+            let mut all_zeros = true;
+            for i in 0..data.len() {
+                if data[i] != 0 {
+                    all_zeros = false;
+                    break;
+                }
+            }
+            if all_zeros {
+                println!("All zeros");
+            }
+
+            match ffmpeg_stdin.write(data) {
+                Ok(size) => println!("Frame streamed to FFmpeg with size: {}", size),
+                Err(e) => eprintln!("Failed to write frame to FFmpeg stdin: {}", e),
+            }
+        }
     }
 }
 
