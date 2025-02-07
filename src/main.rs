@@ -7,6 +7,7 @@ use bevy::render::render_resource::TextureDimension;
 use bevy::render::render_resource::TextureFormat;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured};
 use bevy::window::WindowResized;
 use bevy_egui::EguiPlugin;
 use bevy_egui::{egui, EguiContexts};
@@ -14,11 +15,13 @@ use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_panorbit_camera::PanOrbitCamera;
 use std::f32::consts::PI;
 use std::process::{Stdio, ChildStdin, Command};
-use std::io::Write;
+//use std::io::Write;
 use std::thread;
-use std::time::Duration;    
-
-mod buildings;
+use std::time::Duration;
+use std::ops::Deref;
+use std::sync::Mutex;
+use std::sync::Arc;
+use once_cell::sync::Lazy;
 
 #[derive(Component)]
 struct GameCamera;
@@ -26,8 +29,19 @@ struct GameCamera;
 #[derive(Resource)]
 struct CameraRenderTexture {
     handle: Handle<Image>,
-    ffmpeg_stdin: Option<ChildStdin>,
+    ffmpeg_stdin: ChildStdin,
 }
+
+static EXPORT_WIDTH: u32 = 1280;
+static EXPORT_HEIGHT: u32 = 720;
+static ONE_FRAME: Lazy<Arc<Mutex<Vec<u8>>>> = Lazy::new(
+    || {
+        let capacity: usize = (EXPORT_HEIGHT * EXPORT_WIDTH * 4).try_into().expect("crap");
+        let mut vec = Vec::with_capacity(capacity);
+        vec.resize(capacity, 0);
+        Arc::new(Mutex::new(vec))
+    }
+);
 
 fn main() {
 
@@ -37,14 +51,7 @@ fn main() {
     .spawn()
     .expect("Failed to start mediamtx.exe");
 
-    thread::sleep(Duration::from_secs(5));
-    /*
-
-    match gstreamer::init() {
-        Ok(_) => println!("GStreamer initialized"),
-        Err(e) => println!("Error initializing GStreamer: {:?}", e),
-    }
-    */
+    thread::sleep(Duration::from_secs(1));
 
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -55,7 +62,7 @@ fn main() {
         }),
         ..default()
     }))
-    .insert_resource(Time::<Fixed>::from_seconds(1.0/25.0))
+    .insert_resource(Time::<Fixed>::from_seconds(1.0/1.0))
     .add_plugins(EguiPlugin)
     .add_plugins(PanOrbitCameraPlugin)
     .add_systems(Startup, setup)
@@ -69,8 +76,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    mut images: ResMut<Assets<Image>>,
+    images: ResMut<Assets<Image>>,
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
@@ -104,11 +110,6 @@ fn setup(
     ));
 
     spawn_trees(&mut meshes, &mut materials, &mut commands);
-/*    
-    for _ in 0..250 {
-        buildings::spawn_random_building(&mut commands, &mut meshes, &mut materials);
-    }
-*/
 
     commands.spawn((
         Camera3d::default(), 
@@ -130,17 +131,16 @@ fn setup(
         .args([
             "-y",                      // Overwrite output files
             "-f", "rawvideo",          // Input format is raw video
-            "-pixel_format", "rgba",   // Pixel format
+            "-pixel_format", "rgba",
             "-video_size", "1280x720", // Replace with your texture size
-            "-framerate", "30",        // Replace with your target framerate
+            "-framerate", "25",        // Replace with your target framerate
             "-i", "pipe:0",            // Read from stdin
             "-c:v", "libx264",         // Encode to H.264
             "-pix_fmt", "yuv420p",     // Output pixel format
             "-c:a", "aac",
             "-preset", "ultrafast",    // Encoding preset
-            "myvideo.mp4",             // Output file
-//            "-f", "rtsp",              // Output format
-//            "rtsp://localhost:8554/live", // RTSP output URL
+            "-f", "rtsp",              // Output format
+            "rtsp://localhost:8554/live", // RTSP output URL
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -153,7 +153,7 @@ fn setup(
 
     commands.insert_resource(CameraRenderTexture {
         handle: image,
-        ffmpeg_stdin: Some(ffmpeg_stdin),
+        ffmpeg_stdin: ffmpeg_stdin,
     });
 
      // Spawn a thread to read and display FFmpeg logs
@@ -237,8 +237,8 @@ fn spawn_radar(
     commands.spawn((Mesh3d(radar_body), MeshMaterial3d(radar_body_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
 
     let size = Extent3d {
-        width: 1280,
-        height: 720,
+        width: EXPORT_WIDTH,
+        height: EXPORT_HEIGHT,
         depth_or_array_layers: 1,
         ..default()
     };
@@ -248,7 +248,7 @@ fn spawn_radar(
         size,
         TextureDimension::D2,
         &[0, 0, 0, 0],
-        TextureFormat::Rgba8Unorm,
+        TextureFormat::Bgra8UnormSrgb,
         RenderAssetUsages::default(),
     );
     // You need to set these texture usage flags in order to use the image as a render target
@@ -299,38 +299,39 @@ fn set_camera_viewports(
 }
 
 fn stream_frames(
-    textures: ResMut<Assets<Image>>,
-    mut texture_resource: ResMut<CameraRenderTexture>,
-    mut camera: Query<&Camera, With<RadarCameraToTexture>>,
+    resource: Res<CameraRenderTexture>,
+    mut commands: Commands,
+    mut counter: Local<u32>
 ) {
-    let new_image = &camera.single().target.as_image();
-    let really_image = textures.get(new_image.unwrap());
+    let sc = Screenshot::image(resource.handle.clone());
+    //commands.spawn(sc).observe(save_to_buffer());
+    let path = format!("./screenshot-{}.png", *counter);
+    *counter += 1;
+    commands.spawn(sc).observe(save_to_disk(path));
+}
 
-    if let (Some(image), Some(really_image)) = (textures.get(&texture_resource.handle), really_image) {
-        if let Some(ffmpeg_stdin) = &mut texture_resource.ffmpeg_stdin {
-            // Access the raw pixel data of the texture
-//            let data = &image.data;
-            let data = &really_image.data;
-            
-            // check that data is all zeroas
-            let mut all_zeros = true;
-            for i in 0..data.len() {
-                if data[i] != 0 {
-                    all_zeros = false;
-                    break;
-                }
-            }
-            if all_zeros {
-                println!("All zeros");
-            }
+/* 
+pub fn save_to_buffer() -> impl FnMut(Trigger<ScreenshotCaptured>) {
+    move |trigger| {
+        let img = trigger.event().deref().clone();
+        let data = &img.data;
+        let mut buffer = ONE_FRAME.lock().unwrap();
+        buffer.copy_from_slice(data);
 
-            match ffmpeg_stdin.write(data) {
-                Ok(size) => println!("Frame streamed to FFmpeg with size: {}", size),
-                Err(e) => eprintln!("Failed to write frame to FFmpeg stdin: {}", e),
+        let mut all_zeros = true;
+        for i in 0..buffer.len() {
+            if buffer[i] != 0 {
+                all_zeros = false;
+                break;
             }
         }
-    }
+        if all_zeros == true {
+            println!("All zeros");
+        }
+
+    }    
 }
+*/
 
 pub fn ui_system(mut contexts: EguiContexts) {
     let ctx = contexts.ctx_mut();
