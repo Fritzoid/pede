@@ -67,7 +67,6 @@ fn main() {
     .add_plugins(PanOrbitCameraPlugin)
     .add_systems(Startup, setup)
     .add_systems(Update, ui_system)
-    .add_systems(Update, set_camera_viewports)
     .add_systems(FixedUpdate, stream_frames)
     .run();
 }
@@ -175,9 +174,6 @@ fn setup(
 #[derive(Component)]
 struct RadarCamera;
 
-#[derive(Component)]
-struct RadarCameraToTexture;
-
 fn spawn_trees(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -232,6 +228,7 @@ fn spawn_radar(
     commands: &mut Commands,
     mut images: ResMut<Assets<Image>>,
 ) -> Handle<Image> {
+
     let radar_body = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.1, 0.5), ..default() } );
     let radar_body_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     commands.spawn((Mesh3d(radar_body), MeshMaterial3d(radar_body_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
@@ -253,53 +250,46 @@ fn spawn_radar(
     );
     // You need to set these texture usage flags in order to use the image as a render target
     image.texture_descriptor.usage =
-        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
+        TextureUsages::TEXTURE_BINDING |TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
 
     let image_handle = images.add(image);
 
     let radar_cam_pos = Vec3::new(0.0, 1.0, 0.0);
     let radar_cam_lookat = Vec3::new(0., 1.0, -10.);
-    // Radar Cameras
-     commands.spawn((
-        Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z)
-            .looking_at(Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z), Vec3::Y),
-        Camera3d::default(),
-        RadarCamera,
-    ));
+
     commands.spawn((
         Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z)
             .looking_at(Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z), Vec3::Y),
+        Camera3d::default(),
         Camera {
             target: image_handle.clone().into(),
             order: 1,
             ..default()
         },
-        RadarCameraToTexture,
+        RadarCamera,
+    ));
+
+    let cube_size = 4.0;
+    let cube_handle = meshes.add(Cuboid::new(cube_size, cube_size, cube_size));
+
+    let material_handle = materials.add(StandardMaterial {
+        base_color_texture: Some(image_handle.clone()),
+        reflectance: 0.02,
+        unlit: false,
+        ..default()
+    });
+
+    commands.spawn((
+        Mesh3d(cube_handle),
+        MeshMaterial3d(material_handle),
+        Transform::from_xyz(0.0, 5.0, 1.5).with_rotation(Quat::from_rotation_x(-PI / 5.0)),
     ));
 
     image_handle
 }
 
-fn set_camera_viewports(
-    windows: Query<&Window>,
-    mut resize_events: EventReader<WindowResized>,
-    mut right_camera: Query<&mut Camera, With<RadarCamera>>,
-) {
-    for resize_event in resize_events.read() {
-        let window = windows.get(resize_event.window).unwrap();
-        let mut right_camera = right_camera.single_mut();
-        let size = window.resolution.physical_width() / 5;
-        right_camera.viewport = Some(Viewport {
-            physical_position: UVec2::new(window.resolution.physical_width() - size, 0),
-            physical_size: UVec2::new(size, size),
-            ..default()
-        });
-        right_camera.order = 1
-    }
-}
-
 fn stream_frames(
-    resource: Res<CameraRenderTexture>,
+    resource: ResMut<CameraRenderTexture>,
     mut commands: Commands,
     mut counter: Local<u32>
 ) {
@@ -310,7 +300,7 @@ fn stream_frames(
     commands.spawn(sc).observe(save_to_disk(path));
 }
 
-/* 
+/*
 pub fn save_to_buffer() -> impl FnMut(Trigger<ScreenshotCaptured>) {
     move |trigger| {
         let img = trigger.event().deref().clone();
