@@ -6,11 +6,12 @@ use bevy::render::render_resource::TextureDimension;
 use bevy::render::render_resource::TextureFormat;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured};
+use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use bevy_egui::EguiPlugin;
 use bevy_egui::{egui, EguiContexts};
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_panorbit_camera::PanOrbitCamera;
+use rand::Rng;
 use std::f32::consts::PI;
 use std::process::{Stdio, ChildStdin, Command};
 use std::io::Write;
@@ -116,7 +117,7 @@ fn setup(
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
         MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
-        Transform::from_xyz(0.0, -0.65, 0.0)
+        Transform::from_xyz(0.0, 0.0, 0.0)
     ));
 
     spawn_trees(&mut meshes, &mut materials, &mut commands);
@@ -138,22 +139,6 @@ fn setup(
     let image = spawn_radar(&mut meshes, &mut materials, &mut commands, images);
 
     let mut ffmpeg = Command::new("ffmpeg")
-/*
-        .args([
-            "-y",                      // Overwrite output files
-            "-f", "rawvideo",          // Input format is raw video
-            "-pixel_format", "rgba",
-            "-video_size", "1280x720", // Replace with your texture size
-            "-framerate", "25",        // Replace with your target framerate
-            "-i", "pipe:0",            // Read from stdin
-            "-c:v", "libx264",         // Encode to H.264
-            "-pix_fmt", "yuv420p",     // Output pixel format
-            "-c:a", "aac",
-            "-preset", "ultrafast",    // Encoding preset
-            "-f", "rtsp",              // Output format
-            "rtsp://localhost:8554/live", // RTSP output URL
-        ])
-*/
     .args([
         "-fflags", "+genpts",
         "-f", "rawvideo",          // Input format is raw video
@@ -205,47 +190,36 @@ fn spawn_trees(
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
 ) {
-    const N_TREES: usize = 30;
-    let capsule = meshes.add(Capsule3d::default());
-    let sphere = meshes.add(Sphere::default());
-    let leaves = materials.add(Color::linear_rgb(0.0, 1.0, 0.0));
-    let trunk = materials.add(Color::linear_rgb(0.4, 0.2, 0.2));
+    const N_TREES: usize = 75;
+    let trunk = meshes.add(Cylinder::default());
+    let crown = meshes.add(Sphere::default());
+    let trunk_mat = materials.add(Color::linear_rgb(0.4, 0.2, 0.2));
+    let crown_mat = materials.add(Color::linear_rgb(0.0, 1.0, 0.0));
 
-    let mut spawn_with_offset = |offset: f32| {
-        for i in 0..N_TREES {
-            let pos = race_track_pos(
-                offset,
-                (i as f32) / (N_TREES as f32) * std::f32::consts::PI * 2.0,
-            );
-            let [x, z] = pos.into();
-            commands.spawn((
-                Mesh3d(sphere.clone()),
-                MeshMaterial3d(leaves.clone()),
-                Transform::from_xyz(x, -0.3, z).with_scale(Vec3::splat(0.3)),
-            ));
-            commands.spawn((
-                Mesh3d(capsule.clone()),
-                MeshMaterial3d(trunk.clone()),
-                Transform::from_xyz(x, -0.5, z).with_scale(Vec3::new(0.05, 0.3, 0.05)),
-            ));
-        }
-    };
-    spawn_with_offset(0.07);
-    spawn_with_offset(-0.07);
+    for _i in 0..N_TREES {
+        let x = rnd_tree_coord();
+        let z = rnd_tree_coord();
+        commands.spawn((
+            Mesh3d(trunk.clone()),
+            MeshMaterial3d(trunk_mat.clone()),
+            Transform::from_xyz(x, 0.0, z).with_scale(Vec3::new(0.1, 1.0, 0.1)),
+        ));
+        commands.spawn((
+            Mesh3d(crown.clone()),
+            MeshMaterial3d(crown_mat.clone()),
+            Transform::from_xyz(x, 1.0, z),
+        ));
+    }
 }
 
-fn race_track_pos(offset: f32, t: f32) -> Vec2 {
-    let x_tweak = 2.0;
-    let y_tweak = 3.0;
-    let scale = 8.0;
-    let x0 = ops::sin(x_tweak * t);
-    let y0 = ops::cos(y_tweak * t);
-    let dx = x_tweak * ops::cos(x_tweak * t);
-    let dy = y_tweak * -ops::sin(y_tweak * t);
-    let dl = ops::hypot(dx, dy);
-    let x = x0 + offset * dy / dl;
-    let y = y0 - offset * dx / dl;
-    Vec2::new(x, y) * scale
+fn rnd_tree_coord() -> f32 {
+    let mut rng = rand::rng();
+    let random_number: f32 = if rng.random_bool(0.5) {
+        rng.random_range(-25.0..=-2.0)
+    } else {
+        rng.random_range(2.0..=25.0)
+    };
+    random_number
 }
 
 fn spawn_radar(
@@ -255,9 +229,10 @@ fn spawn_radar(
     mut images: ResMut<Assets<Image>>,
 ) -> Handle<Image> {
 
-    let radar_body = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.1, 0.5), ..default() } );
-    let radar_body_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
-    commands.spawn((Mesh3d(radar_body), MeshMaterial3d(radar_body_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
+    let radar_mount = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.1, 0.5), ..default() } );
+    let radar_mount_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
+
+    commands.spawn((Mesh3d(radar_mount), MeshMaterial3d(radar_mount_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
 
     let size = Extent3d {
         width: EXPORT_WIDTH,
@@ -294,24 +269,6 @@ fn spawn_radar(
         },
         RadarCamera,
     ));
-
-    /* 
-    let cube_size = 4.0;
-    let cube_handle = meshes.add(Cuboid::new(cube_size, cube_size, cube_size));
-
-    let material_handle = materials.add(StandardMaterial {
-        base_color_texture: Some(image_handle.clone()),
-        reflectance: 0.02,
-        unlit: false,
-        ..default()
-    });
-
-    commands.spawn((
-        Mesh3d(cube_handle),
-        MeshMaterial3d(material_handle),
-        Transform::from_xyz(0.0, 5.0, 1.5).with_rotation(Quat::from_rotation_x(-PI / 5.0)),
-    ));
-    */
     image_handle
 }
 
