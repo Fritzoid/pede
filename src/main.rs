@@ -1,21 +1,19 @@
 use bevy::prelude::*;
 use bevy::color::palettes::css::LIGHT_GREEN;
 use bevy::window::WindowMode;
-use bevy::render::camera::Viewport;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::TextureDimension;
 use bevy::render::render_resource::TextureFormat;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured};
-use bevy::window::WindowResized;
 use bevy_egui::EguiPlugin;
 use bevy_egui::{egui, EguiContexts};
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use bevy_panorbit_camera::PanOrbitCamera;
 use std::f32::consts::PI;
 use std::process::{Stdio, ChildStdin, Command};
-//use std::io::Write;
+use std::io::Write;
 use std::thread;
 use std::time::Duration;
 use std::ops::Deref;
@@ -45,13 +43,26 @@ static ONE_FRAME: Lazy<Arc<Mutex<Vec<u8>>>> = Lazy::new(
 
 fn main() {
 
-    let _mediamtx = Command::new("mediamtx.exe")
-    .stdout(Stdio::null())
+    let mut mediamtx = Command::new("mediamtx.exe")
+    .stdout(Stdio::piped())
     .stderr(Stdio::null())
     .spawn()
     .expect("Failed to start mediamtx.exe");
 
     thread::sleep(Duration::from_secs(1));
+
+    if let Some(mediamtx_stderr) = mediamtx.stdout.take() {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(mediamtx_stderr);
+            for line in reader.lines() {
+                match line {
+                    Ok(log) => println!("mediamtx Log: {}", log),
+                    Err(e) => eprintln!("Error reading mediamtx stderr: {}", e),
+                }
+            }
+        });
+    }
 
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -62,7 +73,7 @@ fn main() {
         }),
         ..default()
     }))
-    .insert_resource(Time::<Fixed>::from_seconds(1.0/1.0))
+    .insert_resource(Time::<Fixed>::from_seconds(1.0/25.0))
     .add_plugins(EguiPlugin)
     .add_plugins(PanOrbitCameraPlugin)
     .add_systems(Startup, setup)
@@ -127,6 +138,7 @@ fn setup(
     let image = spawn_radar(&mut meshes, &mut materials, &mut commands, images);
 
     let mut ffmpeg = Command::new("ffmpeg")
+/*
         .args([
             "-y",                      // Overwrite output files
             "-f", "rawvideo",          // Input format is raw video
@@ -141,6 +153,20 @@ fn setup(
             "-f", "rtsp",              // Output format
             "rtsp://localhost:8554/live", // RTSP output URL
         ])
+*/
+    .args([
+        "-fflags", "+genpts",
+        "-f", "rawvideo",          // Input format is raw video
+        "-video_size", "1280x720", // Replace with your texture size
+        "-framerate", "25",        // Replace with your target framerate
+        "-pixel_format", "bgra",
+        "-i", "-",            // Read from stdin
+        "-c:v", "libx264",         // Encode to H.264
+        "-r", "25",              // Output format
+        "-g", "25",
+        "-f", "rtsp",              // Output format
+        "rtsp://127.0.0.1:8554/live", // RTSP output URL
+    ])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -148,7 +174,7 @@ fn setup(
         .expect("Failed to start FFmpeg");
 
     let ffmpeg_stdin = ffmpeg.stdin.take().expect("Failed to capture FFmpeg stdin");
-    thread::sleep(Duration::from_secs(5));
+    thread::sleep(Duration::from_secs(1));
 
     commands.insert_resource(CameraRenderTexture {
         handle: image,
@@ -269,6 +295,7 @@ fn spawn_radar(
         RadarCamera,
     ));
 
+    /* 
     let cube_size = 4.0;
     let cube_handle = meshes.add(Cuboid::new(cube_size, cube_size, cube_size));
 
@@ -284,44 +311,28 @@ fn spawn_radar(
         MeshMaterial3d(material_handle),
         Transform::from_xyz(0.0, 5.0, 1.5).with_rotation(Quat::from_rotation_x(-PI / 5.0)),
     ));
-
+    */
     image_handle
 }
 
 fn stream_frames(
-    resource: ResMut<CameraRenderTexture>,
+    mut resource: ResMut<CameraRenderTexture>,
     mut commands: Commands,
-    mut counter: Local<u32>
 ) {
     let sc = Screenshot::image(resource.handle.clone());
-    //commands.spawn(sc).observe(save_to_buffer());
-    let path = format!("./screenshot-{}.png", *counter);
-    *counter += 1;
-    commands.spawn(sc).observe(save_to_disk(path));
+    commands.spawn(sc).observe(save_to_buffer());
+    let buffer = ONE_FRAME.lock().unwrap();
+    let _ = resource.ffmpeg_stdin.write(&buffer);
 }
 
-/*
 pub fn save_to_buffer() -> impl FnMut(Trigger<ScreenshotCaptured>) {
     move |trigger| {
         let img = trigger.event().deref().clone();
         let data = &img.data;
         let mut buffer = ONE_FRAME.lock().unwrap();
         buffer.copy_from_slice(data);
-
-        let mut all_zeros = true;
-        for i in 0..buffer.len() {
-            if buffer[i] != 0 {
-                all_zeros = false;
-                break;
-            }
-        }
-        if all_zeros == true {
-            println!("All zeros");
-        }
-
     }    
 }
-*/
 
 pub fn ui_system(mut contexts: EguiContexts) {
     let ctx = contexts.ctx_mut();
