@@ -31,6 +31,56 @@ struct CameraRenderTexture {
     ffmpeg_stdin: ChildStdin,
 }
 
+enum RadarState {
+    Idle,
+    Moving,
+}
+
+#[derive(Component)]
+struct RadarElevation {
+    radarState: RadarState,
+    elevation: f32,
+    elevation_target: f32,
+    elevation_velocity: f32,
+    elevation_acceleration: f32,
+}
+
+impl Default for RadarElevation {
+    fn default() -> Self {
+        RadarElevation {
+            radarState: RadarState::Idle,          
+            elevation: 0.0,
+            elevation_target: 0.0,
+            elevation_velocity: 0.0,
+            elevation_acceleration: 0.0,
+        }
+    }
+}
+
+#[derive(Component)]
+struct RadarAzimuth {
+    radarState: RadarState,
+    azimuth: f32,
+    azimuth_target: f32,
+    azimuth_velocity: f32,
+    azimuth_acceleration: f32,
+}
+
+impl Default for RadarAzimuth {
+    fn default() -> Self {
+        RadarAzimuth {
+            radarState: RadarState::Idle,
+            azimuth: 0.0,
+            azimuth_target: 0.0,
+            azimuth_velocity: 0.0,
+            azimuth_acceleration: 0.0,
+        }
+    }
+}
+
+#[derive(Component)]
+struct MustUpdate;
+
 static EXPORT_WIDTH: u32 = 1280;
 static EXPORT_HEIGHT: u32 = 720;
 static ONE_FRAME: Lazy<Arc<Mutex<Vec<u8>>>> = Lazy::new(
@@ -229,10 +279,48 @@ fn spawn_radar(
     mut images: ResMut<Assets<Image>>,
 ) -> Handle<Image> {
 
-    let radar_mount = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.1, 0.5), ..default() } );
-    let radar_mount_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
+    let radar_cam_pos = Vec3::new(0.0, 1.0, 0.0);
+    let radar_cam_lookat = Vec3::new(0., 1.0, -10.);
+    let radar_mount = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.4, 0.5), ..default() } );
 
-    commands.spawn((Mesh3d(radar_mount), MeshMaterial3d(radar_mount_mat), Transform::from_xyz(0.0, 0.0, 0.0)));
+    let radar_pole = meshes.add(Cylinder::default());
+    let radar_hor_pole = meshes.add(Cylinder::default());
+    let radar_antenna = meshes.add(Cuboid { half_size: Vec3::new(0.5, 0.05, 0.3), ..default() } );
+
+    let radar_mount_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
+    let radar_pole_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
+    let radar_antennna_mat = materials.add(Color::linear_rgb(0.1, 0.1, 0.1));
+
+    commands.spawn((
+        Mesh3d(radar_mount), 
+        MeshMaterial3d(radar_mount_mat), 
+        Transform::from_xyz(0.0, 0.0, 0.0)));
+    commands.spawn((
+        Mesh3d(radar_pole), 
+        MeshMaterial3d(radar_pole_mat.clone()), 
+        Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(0.1, 4.0, 0.1)),
+        RadarAzimuth::default(),
+        RadarElevation::default(),
+        MustUpdate,
+    ));
+    commands.spawn((
+        Mesh3d(radar_hor_pole), 
+        MeshMaterial3d(radar_pole_mat.clone()), 
+        Transform::from_xyz(0.5, 1.3, 0.0).with_scale(Vec3::new(0.09, 2.0, 0.09)).with_rotation(Quat::from_rotation_z(PI/2.0)),
+        MustUpdate,
+    ));
+    commands.spawn((
+        Mesh3d(radar_antenna.clone()), 
+        MeshMaterial3d(radar_antennna_mat.clone()), 
+        Transform::from_xyz(-0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI/2.0)),
+        MustUpdate,
+    ));
+    commands.spawn((
+        Mesh3d(radar_antenna.clone()), 
+        MeshMaterial3d(radar_antennna_mat.clone()), 
+        Transform::from_xyz(0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI/2.0)),
+        MustUpdate,
+    ));
 
     let size = Extent3d {
         width: EXPORT_WIDTH,
@@ -254,9 +342,6 @@ fn spawn_radar(
         TextureUsages::TEXTURE_BINDING |TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
 
     let image_handle = images.add(image);
-
-    let radar_cam_pos = Vec3::new(0.0, 1.0, 0.0);
-    let radar_cam_lookat = Vec3::new(0., 1.0, -10.);
 
     commands.spawn((
         Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z)
