@@ -21,6 +21,9 @@ use std::ops::Deref;
 use std::sync::Mutex;
 use std::sync::Arc;
 use once_cell::sync::Lazy;
+use std::io::{BufRead, BufReader};
+use std::net::{TcpListener, TcpStream};
+use std::sync::mpsc::{self, Receiver, Sender};
 
 #[derive(Component)]
 struct GameCamera;
@@ -115,6 +118,14 @@ fn main() {
         });
     }
 
+    let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
+
+    // Spawn a background thread for the TCP listener.
+    thread::spawn(move || {
+        run_tcp_listener(cmd_tx);
+    });
+
+
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -125,11 +136,13 @@ fn main() {
         ..default()
     }))
     .insert_resource(Time::<Fixed>::from_seconds(1.0/25.0))
+    .insert_resource(CommandReceiver {receiver: Mutex::new(cmd_rx),})
     .add_plugins(EguiPlugin)
     .add_plugins(PanOrbitCameraPlugin)
     .add_systems(Startup, setup)
     .add_systems(Update, ui_system)
     .add_systems(FixedUpdate, stream_frames)
+    .add_systems(Update, handle_commands)
     .run();
 }
 
@@ -414,3 +427,126 @@ pub fn ui_system(mut contexts: EguiContexts) {
     });
 }
 
+enum RadarCommand {
+    Azimuth(f32),
+    Elevation(f32),
+    AzimuthQuery { tx: Sender<f32> },
+    ElevationQuery { tx: Sender<f32> },
+}
+
+fn run_tcp_listener(cmd_tx: Sender<RadarCommand>) {
+    let listener = TcpListener::bind("127.0.0.1:7878").expect("Could not bind to address");
+    println!("TCP listener running on 127.0.0.1:7878");
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                // For each connection, clone the sender and spawn a thread.
+                let tx_clone = cmd_tx.clone();
+                thread::spawn(move || {
+                    handle_client(stream, tx_clone);
+                });
+            }
+            Err(e) => {
+                eprintln!("Failed to accept a connection: {:?}", e);
+            }
+        }
+    }
+}
+
+fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
+    let mut reader = BufReader::new(stream.try_clone().expect("Failed to clone stream"));
+    loop {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) => {
+                // End-of-stream (client disconnected)
+                break;
+            }
+            Ok(_) => {
+                let line = line.trim().to_uppercase();
+                if line.starts_with("AZIMUTH") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() == 2 {
+                        if let Ok(az) = parts[1].parse::<f32>()
+                        {
+                            let cmd = RadarCommand::Azimuth(az);
+                            if let Err(e) = cmd_tx.send(cmd) {
+                                eprintln!("Failed to send AZIMUTH command: {:?}", e);
+                            }
+                        }
+                    }
+                    else if parts.len() == 1 {
+                        // For a QUERY, create a one-shot channel for the reply.
+                        let (reply_tx, reply_rx) = mpsc::channel();
+                        let cmd = RadarCommand::AzimuthQuery { tx: reply_tx };
+                        if let Err(e) = cmd_tx.send(cmd) {
+                            eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
+                        } else {
+                            // Wait for the reply from the main thread.
+                            if let Ok(az) = reply_rx.recv() {
+                                let response = format!("Current Radar Azimuth: {:.2}\n", az);
+                                let _ = stream.write_all(response.as_bytes());
+                            }
+                        }
+                    }
+                } else if line.starts_with("ELEVATION") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() == 2 {
+                        if let Ok(az) = parts[1].parse::<f32>()
+                        {
+                            let cmd = RadarCommand::Elevation(az);
+                            if let Err(e) = cmd_tx.send(cmd) {
+                                eprintln!("Failed to send ELEVATION command: {:?}", e);
+                            }
+                        }
+                    }
+                    else if parts.len() == 1 {
+                        // For a QUERY, create a one-shot channel for the reply.
+                        let (reply_tx, reply_rx) = mpsc::channel();
+                        let cmd = RadarCommand::ElevationQuery { tx: reply_tx };
+                        if let Err(e) = cmd_tx.send(cmd) {
+                            eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
+                        } else {
+                            // Wait for the reply from the main thread.
+                            if let Ok(az) = reply_rx.recv() {
+                                let response = format!("Current Radar Azimuth: {:.2}\n", az);
+                                let _ = stream.write_all(response.as_bytes());
+                            }
+                        }
+                    }
+                } else {
+                    let _ = stream.write_all(b"Unknown command\n");
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading from client: {:?}", e);
+                break;
+            }
+        }
+    }
+}
+
+#[derive(Resource)]
+struct CommandReceiver {
+    receiver: Mutex<Receiver<RadarCommand>>,
+}
+
+fn handle_commands(cmd_receiver: ResMut<CommandReceiver>) {
+    let receiver = cmd_receiver.receiver.lock().unwrap();
+    while let Ok(command) = receiver.try_recv() {
+        match command {
+            RadarCommand::Azimuth(az) => {
+                println!("Setting azimuth to {:.2}", az);
+            }
+            RadarCommand::Elevation(el) => {
+                println!("Setting elevation to {:.2}", el);
+            }
+            RadarCommand::AzimuthQuery { tx } => {
+                let _ = tx.send(0.0);
+            }
+            RadarCommand::ElevationQuery { tx } => {
+                let _ = tx.send(0.0);
+            }
+        }
+    }
+}
