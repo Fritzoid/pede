@@ -250,7 +250,7 @@ pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<
             count += 1;
         }
 
-        println!("Rotated {} entities", count);
+        //println!("Rotated {} entities", count);
     }
 
     // Update elevation.

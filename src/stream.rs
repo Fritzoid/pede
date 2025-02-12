@@ -28,12 +28,16 @@ pub fn start_stream() -> ChildStdin {
         .args([
             "-fflags",
             "+genpts",
+            "-fflags",
+            "nobuffer",
             "-f",
             "rawvideo", // Input format is raw video
             "-video_size",
             "1280x720", // Replace with your texture size
             "-framerate",
             "25", // Replace with your target framerate
+            "-use_wallclock_as_timestamps",
+            "1",
             "-pixel_format",
             "bgra",
             "-i",
@@ -44,8 +48,14 @@ pub fn start_stream() -> ChildStdin {
             "25", // Output format
             "-g",
             "25",
+            "-pix_fmt", 
+            "yuv420p",
+            "-preset",
+            "ultrafast",
             "-f",
             "rtsp",                       // Output format
+            "-rtsp_transport",
+            "udp",
             "rtsp://127.0.0.1:8554/live", // RTSP output URL
         ])
         .stdin(Stdio::piped())
