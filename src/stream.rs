@@ -1,14 +1,13 @@
-use std::process::{Stdio, ChildStdin, Command};
+use std::process::{ChildStdin, Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
 pub fn start_stream() -> ChildStdin {
-    
     let mut mediamtx = Command::new("mediamtx.exe")
-    .stdout(Stdio::piped())
-    .stderr(Stdio::null())
-    .spawn()
-    .expect("Failed to start mediamtx.exe");
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to start mediamtx.exe");
 
     thread::sleep(Duration::from_secs(1));
 
@@ -26,19 +25,29 @@ pub fn start_stream() -> ChildStdin {
     }
 
     let mut ffmpeg = Command::new("ffmpeg")
-    .args([
-        "-fflags", "+genpts",
-        "-f", "rawvideo",          // Input format is raw video
-        "-video_size", "1280x720", // Replace with your texture size
-        "-framerate", "25",        // Replace with your target framerate
-        "-pixel_format", "bgra",
-        "-i", "-",            // Read from stdin
-        "-c:v", "libx264",         // Encode to H.264
-        "-r", "25",              // Output format
-        "-g", "25",
-        "-f", "rtsp",              // Output format
-        "rtsp://127.0.0.1:8554/live", // RTSP output URL
-    ])
+        .args([
+            "-fflags",
+            "+genpts",
+            "-f",
+            "rawvideo", // Input format is raw video
+            "-video_size",
+            "1280x720", // Replace with your texture size
+            "-framerate",
+            "25", // Replace with your target framerate
+            "-pixel_format",
+            "bgra",
+            "-i",
+            "-", // Read from stdin
+            "-c:v",
+            "libx264", // Encode to H.264
+            "-r",
+            "25", // Output format
+            "-g",
+            "25",
+            "-f",
+            "rtsp",                       // Output format
+            "rtsp://127.0.0.1:8554/live", // RTSP output URL
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())

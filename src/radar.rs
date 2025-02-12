@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 use std::f32::consts::PI;
-use std::thread;
-use std::io::{Write, BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
+use std::thread;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -28,37 +28,46 @@ pub fn spawn_radar(
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
 ) -> Receiver<RadarCommand> {
-    let radar_mount = meshes.add(Cuboid { half_size: Vec3::new(1.0, 0.4, 0.5), ..default() } );
+    let radar_mount = meshes.add(Cuboid {
+        half_size: Vec3::new(1.0, 0.4, 0.5),
+        ..default()
+    });
     let radar_pole = meshes.add(Cylinder::default());
     let radar_hor_pole = meshes.add(Cylinder::default());
-    let radar_antenna = meshes.add(Cuboid { half_size: Vec3::new(0.5, 0.05, 0.3), ..default() } );
+    let radar_antenna = meshes.add(Cuboid {
+        half_size: Vec3::new(0.5, 0.05, 0.3),
+        ..default()
+    });
     let radar_mount_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_pole_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_antennna_mat = materials.add(Color::linear_rgb(0.1, 0.1, 0.1));
 
     commands.spawn((
-        Mesh3d(radar_mount), 
-        MeshMaterial3d(radar_mount_mat), 
-        Transform::from_xyz(0.0, 0.0, 0.0)));
+        Mesh3d(radar_mount),
+        MeshMaterial3d(radar_mount_mat),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+    ));
     commands.spawn((
-        Mesh3d(radar_pole), 
-        MeshMaterial3d(radar_pole_mat.clone()), 
+        Mesh3d(radar_pole),
+        MeshMaterial3d(radar_pole_mat.clone()),
         Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(0.1, 4.0, 0.1)),
     ));
     commands.spawn((
-        Mesh3d(radar_hor_pole), 
-        MeshMaterial3d(radar_pole_mat.clone()), 
-        Transform::from_xyz(0.5, 1.3, 0.0).with_scale(Vec3::new(0.09, 2.0, 0.09)).with_rotation(Quat::from_rotation_z(PI/2.0)),
+        Mesh3d(radar_hor_pole),
+        MeshMaterial3d(radar_pole_mat.clone()),
+        Transform::from_xyz(0.5, 1.3, 0.0)
+            .with_scale(Vec3::new(0.09, 2.0, 0.09))
+            .with_rotation(Quat::from_rotation_z(PI / 2.0)),
     ));
     commands.spawn((
-        Mesh3d(radar_antenna.clone()), 
-        MeshMaterial3d(radar_antennna_mat.clone()), 
-        Transform::from_xyz(-0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI/2.0)),
+        Mesh3d(radar_antenna.clone()),
+        MeshMaterial3d(radar_antennna_mat.clone()),
+        Transform::from_xyz(-0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
     ));
     commands.spawn((
-        Mesh3d(radar_antenna.clone()), 
-        MeshMaterial3d(radar_antennna_mat.clone()), 
-        Transform::from_xyz(0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI/2.0)),
+        Mesh3d(radar_antenna.clone()),
+        MeshMaterial3d(radar_antennna_mat.clone()),
+        Transform::from_xyz(0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
     ));
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
@@ -111,8 +120,7 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() == 2 {
                         let (reply_tx, reply_rx) = mpsc::channel();
-                        if let Ok(az) = parts[1].parse::<f32>()
-                        {
+                        if let Ok(az) = parts[1].parse::<f32>() {
                             let cmd = RadarCommand::Azimuth { az, tx: reply_tx };
                             if let Err(e) = cmd_tx.send(cmd) {
                                 eprintln!("Failed to send AZIMUTH command: {:?}", e);
@@ -123,8 +131,7 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                                 }
                             }
                         }
-                    }
-                    else if parts.len() == 1 {
+                    } else if parts.len() == 1 {
                         let (reply_tx, reply_rx) = mpsc::channel();
                         let cmd = RadarCommand::AzimuthQuery { tx: reply_tx };
                         if let Err(e) = cmd_tx.send(cmd) {
@@ -141,9 +148,8 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() == 2 {
                         let (reply_tx, reply_rx) = mpsc::channel();
-                        if let Ok(el) = parts[1].parse::<f32>()
-                        {
-                            let cmd = RadarCommand::Elevation {el, tx: reply_tx};
+                        if let Ok(el) = parts[1].parse::<f32>() {
+                            let cmd = RadarCommand::Elevation { el, tx: reply_tx };
                             if let Err(e) = cmd_tx.send(cmd) {
                                 eprintln!("Failed to send ELEVATION command: {:?}", e);
                             } else {
@@ -153,8 +159,7 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                                 }
                             }
                         }
-                    }
-                    else if parts.len() == 1 {
+                    } else if parts.len() == 1 {
                         // For a QUERY, create a one-shot channel for the reply.
                         let (reply_tx, reply_rx) = mpsc::channel();
                         let cmd = RadarCommand::ElevationQuery { tx: reply_tx };

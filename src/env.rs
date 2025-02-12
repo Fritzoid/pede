@@ -1,14 +1,17 @@
-use bevy::prelude::*;
 use bevy::color::palettes::css::LIGHT_GREEN;
+use bevy::prelude::*;
 use bevy_panorbit_camera::PanOrbitCamera;
-use std::f32::consts::PI;
 use rand::Rng;
+use std::f32::consts::PI;
 
 #[derive(Component)]
 struct GameCamera;
 
-pub fn spawn_env(commands: &mut Commands, meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>)
-{
+pub fn spawn_env(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
         brightness: 300.0,
@@ -37,25 +40,23 @@ pub fn spawn_env(commands: &mut Commands, meshes: &mut Assets<Mesh>, materials: 
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(50.0, 50.0).subdivisions(10))),
         MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
-        Transform::from_xyz(0.0, 0.0, 0.0)
+        Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
     spawn_trees(meshes, materials, commands);
 
     commands.spawn((
-        Camera3d::default(), 
-        PanOrbitCamera { 
-            pitch_lower_limit: Some(PI/6.0),
-            pitch_upper_limit: Some(PI/4.0),
+        Camera3d::default(),
+        PanOrbitCamera {
+            pitch_lower_limit: Some(PI / 6.0),
+            pitch_upper_limit: Some(PI / 4.0),
             zoom_lower_limit: 10.0,
             zoom_upper_limit: Some(500.0),
-            ..default() 
+            ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 15.0)
-            .looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
+        Transform::from_xyz(0.0, 0.0, 15.0).looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
         GameCamera,
     ));
-
 }
 
 fn spawn_trees(
