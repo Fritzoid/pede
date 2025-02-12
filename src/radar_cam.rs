@@ -7,6 +7,8 @@ use std::io::Write;
 use std::ops::Deref;
 use std::process::ChildStdin;
 use std::sync::{Arc, Mutex};
+use crate::radar::FollowAzimuth;
+
 
 static EXPORT_WIDTH: u32 = 1280;
 static EXPORT_HEIGHT: u32 = 720;
@@ -30,8 +32,10 @@ pub fn spawn_radar_cam(
     commands: &mut Commands,
     mut images: ResMut<Assets<Image>>,
 ) -> Handle<Image> {
-    let radar_cam_pos = Vec3::new(0.0, 1.0, 0.0);
-    let radar_cam_lookat = Vec3::new(0., 1.0, -10.);
+
+    let radar_cam_pos = Vec3::new(1.3, 1.3, 0.0);
+    let radar_cam_lookat = Vec3::new(0., 1.3, -10.);
+
     let size = Extent3d {
         width: EXPORT_WIDTH,
         height: EXPORT_HEIGHT,
@@ -65,6 +69,7 @@ pub fn spawn_radar_cam(
             ..default()
         },
         RadarCamera,
+        FollowAzimuth
     ));
     image_handle
 }

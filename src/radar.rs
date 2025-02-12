@@ -23,6 +23,9 @@ pub struct Radar {
     pub target: RadarState,
 }
 
+#[derive(Component, Debug)]
+pub struct FollowAzimuth;
+
 pub fn spawn_radar(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -38,9 +41,14 @@ pub fn spawn_radar(
         half_size: Vec3::new(0.5, 0.05, 0.3),
         ..default()
     });
+    let radar_cam_box = meshes.add(Cuboid {
+        half_size: Vec3::new(0.05, 0.05, 0.2),
+        ..default()
+    });
     let radar_mount_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_pole_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_antennna_mat = materials.add(Color::linear_rgb(0.1, 0.1, 0.1));
+    let radar_cam_box_mat = materials.add(Color::linear_rgb(0.8, 0.8, 0.8));
 
     commands.spawn((
         Mesh3d(radar_mount),
@@ -58,16 +66,25 @@ pub fn spawn_radar(
         Transform::from_xyz(0.5, 1.3, 0.0)
             .with_scale(Vec3::new(0.09, 2.0, 0.09))
             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
+        FollowAzimuth
     ));
     commands.spawn((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
         Transform::from_xyz(-0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+        FollowAzimuth
     ));
     commands.spawn((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
         Transform::from_xyz(0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+        FollowAzimuth
+    ));
+    commands.spawn((
+        Mesh3d(radar_cam_box.clone()),
+        MeshMaterial3d(radar_cam_box_mat.clone()),
+        Transform::from_xyz(1.3, 1.3, 0.0),
+        FollowAzimuth
     ));
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
@@ -185,41 +202,56 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
     }
 }
 
-pub fn handle_commands(cmd_receiver: ResMut<CommandReceiver>) {
+pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandReceiver>) {
     let receiver = cmd_receiver.receiver.lock().unwrap();
     while let Ok(command) = receiver.try_recv() {
         match command {
             RadarCommand::Azimuth { az, tx } => {
                 println!("Setting azimuth to {:.2}", az);
+                radar.target.azimuth = az;
                 let _ = tx.send("O".to_string());
             }
             RadarCommand::Elevation { el, tx } => {
                 println!("Setting elevation to {:.2}", el);
+                radar.target.elevation = el;
                 let _ = tx.send("O".to_string());
             }
             RadarCommand::AzimuthQuery { tx } => {
-                let _ = tx.send(0.0);
+                let _ = tx.send(radar.current.azimuth);
             }
             RadarCommand::ElevationQuery { tx } => {
-                let _ = tx.send(0.0);
+                let _ = tx.send(radar.current.elevation);
             }
         }
     }
 }
 
-pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>) {
+pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<(&mut Transform, &FollowAzimuth)>) {
     // Speed in degrees per second.
     let speed = 30.0;
     let dt = time.delta_secs();
 
     // Update azimuth.
     let diff_az = radar.target.azimuth - radar.current.azimuth;
-    let step_az = if diff_az.abs() < speed * dt {
-        diff_az
-    } else {
-        diff_az.signum() * speed * dt
-    };
-    radar.current.azimuth += step_az;
+    if diff_az != 0.0
+    {
+        let step_az = if diff_az.abs() < speed * dt {
+            diff_az
+        } else {
+            diff_az.signum() * speed * dt
+        };
+        radar.current.azimuth += step_az;
+    
+        let angle = step_az.to_radians();
+
+        let mut count = 0;
+        for (mut transform, _follow) in query.iter_mut() {
+            transform.rotate_around(Vec3::new(0.0, 0.0, 0.0), Quat::from_rotation_y(angle));
+            count += 1;
+        }
+
+        println!("Rotated {} entities", count);
+    }
 
     // Update elevation.
     let diff_el = radar.target.elevation - radar.current.elevation;
