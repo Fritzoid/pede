@@ -1,88 +1,22 @@
 use bevy::prelude::*;
 use bevy::color::palettes::css::LIGHT_GREEN;
 use bevy::window::WindowMode;
-use bevy::render::render_resource::Extent3d;
-use bevy::render::render_resource::TextureDimension;
-use bevy::render::render_resource::TextureFormat;
-use bevy::render::render_resource::TextureUsages;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
-use bevy_egui::EguiPlugin;
-use bevy_egui::{egui, EguiContexts};
-use bevy_panorbit_camera::PanOrbitCameraPlugin;
-use bevy_panorbit_camera::PanOrbitCamera;
+use bevy_egui::{egui, EguiPlugin, EguiContexts};
+use bevy_panorbit_camera::{PanOrbitCameraPlugin, PanOrbitCamera};
 use rand::Rng;
 use std::f32::consts::PI;
 use std::process::{Stdio, ChildStdin, Command};
-use std::io::Write;
 use std::thread;
 use std::time::Duration;
 use std::ops::Deref;
-use std::sync::Mutex;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
-use std::io::{BufRead, BufReader};
+use std::io::{Write, BufRead, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{self, Receiver, Sender};
-
-#[derive(Component)]
-struct GameCamera;
-
-#[derive(Resource)]
-struct CameraRenderTexture {
-    handle: Handle<Image>,
-    ffmpeg_stdin: ChildStdin,
-}
-
-enum RadarState {
-    Idle,
-    Moving,
-}
-
-#[derive(Component)]
-struct RadarElevation {
-    radarState: RadarState,
-    elevation: f32,
-    elevation_target: f32,
-    elevation_velocity: f32,
-    elevation_acceleration: f32,
-}
-
-impl Default for RadarElevation {
-    fn default() -> Self {
-        RadarElevation {
-            radarState: RadarState::Idle,          
-            elevation: 0.0,
-            elevation_target: 0.0,
-            elevation_velocity: 0.0,
-            elevation_acceleration: 0.0,
-        }
-    }
-}
-
-#[derive(Component)]
-struct RadarAzimuth {
-    radarState: RadarState,
-    azimuth: f32,
-    azimuth_target: f32,
-    azimuth_velocity: f32,
-    azimuth_acceleration: f32,
-}
-
-impl Default for RadarAzimuth {
-    fn default() -> Self {
-        RadarAzimuth {
-            radarState: RadarState::Idle,
-            azimuth: 0.0,
-            azimuth_target: 0.0,
-            azimuth_velocity: 0.0,
-            azimuth_acceleration: 0.0,
-        }
-    }
-}
-
-#[derive(Component)]
-struct MustUpdate;
 
 static EXPORT_WIDTH: u32 = 1280;
 static EXPORT_HEIGHT: u32 = 720;
@@ -94,6 +28,35 @@ static ONE_FRAME: Lazy<Arc<Mutex<Vec<u8>>>> = Lazy::new(
         Arc::new(Mutex::new(vec))
     }
 );
+
+#[derive(Component)]
+struct GameCamera;
+
+#[derive(Resource)]
+struct CameraRenderTexture {
+    handle: Handle<Image>,
+    ffmpeg_stdin: ChildStdin,
+}
+
+#[derive(Resource)]
+struct CommandReceiver {
+    receiver: Mutex<Receiver<RadarCommand>>,
+}
+
+#[derive(Debug, Clone)]
+struct RadarState {
+    azimuth: f32,
+    elevation: f32,
+}
+
+#[derive(Resource)]
+struct Radar {
+    current: RadarState,
+    target: RadarState,
+}
+
+#[derive(Component)]
+struct RadarCamera;
 
 fn main() {
 
@@ -120,11 +83,9 @@ fn main() {
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
 
-    // Spawn a background thread for the TCP listener.
     thread::spawn(move || {
         run_tcp_listener(cmd_tx);
     });
-
 
     App::new()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -137,12 +98,23 @@ fn main() {
     }))
     .insert_resource(Time::<Fixed>::from_seconds(1.0/25.0))
     .insert_resource(CommandReceiver {receiver: Mutex::new(cmd_rx),})
+    .insert_resource(Radar {
+        current: RadarState {
+            azimuth: 0.0,
+            elevation: 0.0,
+        },
+        target: RadarState {
+            azimuth: 0.0,
+            elevation: 0.0,
+        },
+    })
     .add_plugins(EguiPlugin)
     .add_plugins(PanOrbitCameraPlugin)
     .add_systems(Startup, setup)
     .add_systems(Update, ui_system)
     .add_systems(FixedUpdate, stream_frames)
     .add_systems(Update, handle_commands)
+    .add_systems(Update, update_radar)
     .run();
 }
 
@@ -245,9 +217,6 @@ fn setup(
 
 }
 
-#[derive(Component)]
-struct RadarCamera;
-
 fn spawn_trees(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -312,27 +281,21 @@ fn spawn_radar(
         Mesh3d(radar_pole), 
         MeshMaterial3d(radar_pole_mat.clone()), 
         Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(0.1, 4.0, 0.1)),
-        RadarAzimuth::default(),
-        RadarElevation::default(),
-        MustUpdate,
     ));
     commands.spawn((
         Mesh3d(radar_hor_pole), 
         MeshMaterial3d(radar_pole_mat.clone()), 
         Transform::from_xyz(0.5, 1.3, 0.0).with_scale(Vec3::new(0.09, 2.0, 0.09)).with_rotation(Quat::from_rotation_z(PI/2.0)),
-        MustUpdate,
     ));
     commands.spawn((
         Mesh3d(radar_antenna.clone()), 
         MeshMaterial3d(radar_antennna_mat.clone()), 
         Transform::from_xyz(-0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI/2.0)),
-        MustUpdate,
     ));
     commands.spawn((
         Mesh3d(radar_antenna.clone()), 
         MeshMaterial3d(radar_antennna_mat.clone()), 
         Transform::from_xyz(0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI/2.0)),
-        MustUpdate,
     ));
 
     let size = Extent3d {
@@ -428,8 +391,8 @@ pub fn ui_system(mut contexts: EguiContexts) {
 }
 
 enum RadarCommand {
-    Azimuth(f32),
-    Elevation(f32),
+    Azimuth { az: f32, tx: Sender<String> },
+    Elevation { el: f32, tx: Sender<String> },
     AzimuthQuery { tx: Sender<f32> },
     ElevationQuery { tx: Sender<f32> },
 }
@@ -467,16 +430,21 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                 if line.starts_with("AZIMUTH") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() == 2 {
+                        let (reply_tx, reply_rx) = mpsc::channel();
                         if let Ok(az) = parts[1].parse::<f32>()
                         {
-                            let cmd = RadarCommand::Azimuth(az);
+                            let cmd = RadarCommand::Azimuth { az, tx: reply_tx };
                             if let Err(e) = cmd_tx.send(cmd) {
                                 eprintln!("Failed to send AZIMUTH command: {:?}", e);
+                            } else {
+                                // Wait for the reply from the main thread.
+                                if let Ok(o) = reply_rx.recv() {
+                                    let _ = stream.write_all(o.as_bytes());
+                                }
                             }
                         }
                     }
                     else if parts.len() == 1 {
-                        // For a QUERY, create a one-shot channel for the reply.
                         let (reply_tx, reply_rx) = mpsc::channel();
                         let cmd = RadarCommand::AzimuthQuery { tx: reply_tx };
                         if let Err(e) = cmd_tx.send(cmd) {
@@ -492,11 +460,17 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                 } else if line.starts_with("ELEVATION") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() == 2 {
-                        if let Ok(az) = parts[1].parse::<f32>()
+                        let (reply_tx, reply_rx) = mpsc::channel();
+                        if let Ok(el) = parts[1].parse::<f32>()
                         {
-                            let cmd = RadarCommand::Elevation(az);
+                            let cmd = RadarCommand::Elevation {el, tx: reply_tx};
                             if let Err(e) = cmd_tx.send(cmd) {
                                 eprintln!("Failed to send ELEVATION command: {:?}", e);
+                            } else {
+                                // Wait for the reply from the main thread.
+                                if let Ok(o) = reply_rx.recv() {
+                                    let _ = stream.write_all(o.as_bytes());
+                                }
                             }
                         }
                     }
@@ -509,7 +483,7 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                         } else {
                             // Wait for the reply from the main thread.
                             if let Ok(az) = reply_rx.recv() {
-                                let response = format!("Current Radar Azimuth: {:.2}\n", az);
+                                let response = format!("{:.2}\n", az);
                                 let _ = stream.write_all(response.as_bytes());
                             }
                         }
@@ -526,20 +500,15 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
     }
 }
 
-#[derive(Resource)]
-struct CommandReceiver {
-    receiver: Mutex<Receiver<RadarCommand>>,
-}
-
 fn handle_commands(cmd_receiver: ResMut<CommandReceiver>) {
     let receiver = cmd_receiver.receiver.lock().unwrap();
     while let Ok(command) = receiver.try_recv() {
         match command {
-            RadarCommand::Azimuth(az) => {
-                println!("Setting azimuth to {:.2}", az);
+            RadarCommand::Azimuth { az, tx } => {
+                let _ = tx.send("O".to_string());
             }
-            RadarCommand::Elevation(el) => {
-                println!("Setting elevation to {:.2}", el);
+            RadarCommand::Elevation { el, tx } => {
+                let _ = tx.send("O".to_string());
             }
             RadarCommand::AzimuthQuery { tx } => {
                 let _ = tx.send(0.0);
@@ -549,4 +518,28 @@ fn handle_commands(cmd_receiver: ResMut<CommandReceiver>) {
             }
         }
     }
+}
+
+fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>) {
+    // Speed in degrees per second.
+    let speed = 30.0;
+    let dt = time.delta_secs();
+
+    // Update azimuth.
+    let diff_az = radar.target.azimuth - radar.current.azimuth;
+    let step_az = if diff_az.abs() < speed * dt {
+        diff_az
+    } else {
+        diff_az.signum() * speed * dt
+    };
+    radar.current.azimuth += step_az;
+
+    // Update elevation.
+    let diff_el = radar.target.elevation - radar.current.elevation;
+    let step_el = if diff_el.abs() < speed * dt {
+        diff_el
+    } else {
+        diff_el.signum() * speed * dt
+    };
+    radar.current.elevation += step_el;
 }
