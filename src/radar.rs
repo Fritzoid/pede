@@ -24,7 +24,7 @@ pub struct Radar {
 }
 
 #[derive(Component, Debug)]
-pub struct FollowAzimuth;
+pub struct FollowOrientation;
 
 pub fn spawn_radar(
     meshes: &mut Assets<Mesh>,
@@ -60,31 +60,39 @@ pub fn spawn_radar(
         MeshMaterial3d(radar_pole_mat.clone()),
         Transform::from_xyz(0.0, 0.0, 0.0).with_scale(Vec3::new(0.1, 4.0, 0.1)),
     ));
-    commands.spawn((
+
+    let pivot_object = meshes.add(Cuboid::default());
+    let mut pivot_id = commands.spawn((
+        Mesh3d(pivot_object),
+        Visibility::Hidden,
+        Transform::from_xyz(0.0, 1.3, 0.0),
+        FollowOrientation
+    ));
+    pivot_id.with_child((
         Mesh3d(radar_hor_pole),
         MeshMaterial3d(radar_pole_mat.clone()),
-        Transform::from_xyz(0.5, 1.3, 0.0)
+        Transform::from_xyz(0.5, 0.0, 0.0)
             .with_scale(Vec3::new(0.09, 2.0, 0.09))
             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
-        FollowAzimuth
+        Visibility::Visible
     ));
-    commands.spawn((
+    pivot_id.with_child((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
-        Transform::from_xyz(-0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
-        FollowAzimuth
+        Transform::from_xyz(-0.65, 0.0, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+        Visibility::Visible
     ));
-    commands.spawn((
+    pivot_id.with_child((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
-        Transform::from_xyz(0.65, 1.3, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
-        FollowAzimuth
+        Transform::from_xyz(0.65, 0.0, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+        Visibility::Visible
     ));
-    commands.spawn((
+    pivot_id.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
-        Transform::from_xyz(1.3, 1.3, 0.0),
-        FollowAzimuth
+        Transform::from_xyz(1.3, 0.0, 0.0),
+        Visibility::Visible
     ));
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
@@ -226,39 +234,33 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
     }
 }
 
-pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<(&mut Transform, &FollowAzimuth)>) {
+pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<(&mut Transform, &FollowOrientation)>) {
     // Speed in degrees per second.
-    let speed = 30.0;
+    let speed_az = 15.0;
     let dt = time.delta_secs();
 
     // Update azimuth.
     let diff_az = radar.target.azimuth - radar.current.azimuth;
-    if diff_az != 0.0
-    {
-        let step_az = if diff_az.abs() < speed * dt {
-            diff_az
-        } else {
-            diff_az.signum() * speed * dt
-        };
-        radar.current.azimuth += step_az;
+    let step_az = if diff_az.abs() < speed_az * dt {
+        diff_az
+    } else {
+        diff_az.signum() * speed_az * dt
+    };
+    radar.current.azimuth += step_az;
     
-        let angle = step_az.to_radians();
-
-        let mut count = 0;
-        for (mut transform, _follow) in query.iter_mut() {
-            transform.rotate_around(Vec3::new(0.0, 0.0, 0.0), Quat::from_rotation_y(angle));
-            count += 1;
-        }
-
-        //println!("Rotated {} entities", count);
-    }
-
     // Update elevation.
     let diff_el = radar.target.elevation - radar.current.elevation;
-    let step_el = if diff_el.abs() < speed * dt {
+    let speed_el = 20.0;
+    let step_el = if diff_el.abs() < speed_el * dt {
         diff_el
     } else {
-        diff_el.signum() * speed * dt
+        diff_el.signum() * speed_el * dt
     };
     radar.current.elevation += step_el;
+
+    let angle_az = step_az.to_radians();
+    let angle_el = step_el.to_radians();
+    for (mut transform, _follow) in query.iter_mut() {
+        transform.rotate_around(Vec3::new(0.0, 1.3, 0.0),  Quat::from_rotation_x(angle_el) * Quat::from_rotation_y(angle_az));
+    }
 }

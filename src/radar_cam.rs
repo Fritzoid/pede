@@ -7,7 +7,7 @@ use std::io::Write;
 use std::ops::Deref;
 use std::process::ChildStdin;
 use std::sync::{Arc, Mutex};
-use crate::radar::FollowAzimuth;
+use crate::radar::FollowOrientation;
 
 
 static EXPORT_WIDTH: u32 = 1280;
@@ -69,7 +69,7 @@ pub fn spawn_radar_cam(
             ..default()
         },
         RadarCamera,
-        FollowAzimuth
+        FollowOrientation
     ));
     image_handle
 }
