@@ -7,8 +7,6 @@ use std::io::Write;
 use std::ops::Deref;
 use std::process::ChildStdin;
 use std::sync::{Arc, Mutex};
-use crate::radar::FollowOrientation;
-
 
 static EXPORT_WIDTH: u32 = 1280;
 static EXPORT_HEIGHT: u32 = 720;
@@ -29,6 +27,8 @@ pub struct CameraRenderTexture {
 }
 
 pub fn spawn_radar_cam(
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
     mut images: ResMut<Assets<Image>>,
     pivot: Entity,
@@ -72,6 +72,23 @@ pub fn spawn_radar_cam(
         RadarCamera,
         Visibility::Visible
     ));
+    let radar_screen = meshes.add(Plane3d {
+            normal: Dir3::Z,
+            half_size: Vec2::new(0.4, 0.2),
+        ..default()
+    });
+    let material_handle = materials.add(StandardMaterial {
+        base_color_texture: Some(image_handle.clone()),
+        reflectance: 0.02,
+        unlit: false,
+        ..default()
+    });
+    commands.spawn((
+        Mesh3d(radar_screen),
+        MeshMaterial3d(material_handle),
+        Transform::from_xyz(0.0, 0.3, 0.57).with_rotation(Quat::from_rotation_x(-0.19)),
+    ));
+
     image_handle
 }
 

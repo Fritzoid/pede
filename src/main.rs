@@ -46,11 +46,12 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     images: ResMut<Assets<Image>>,
+    asset_server: Res<AssetServer>
 ) {
-    env::spawn_env(&mut commands, &mut meshes, &mut materials);
+    env::spawn_env(&mut commands, &mut meshes, &mut materials, asset_server);
 
     let (cmd_rx, pivot) = radar::spawn_radar(&mut meshes, &mut materials, &mut commands);
-    let image = radar_cam::spawn_radar_cam(&mut commands, images, pivot);
+    let image = radar_cam::spawn_radar_cam(meshes, &mut materials, &mut commands, images, pivot);
     let stdin = stream::start_stream();
 
     commands.insert_resource(radar_cam::CameraRenderTexture {

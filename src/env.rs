@@ -11,6 +11,7 @@ pub fn spawn_env(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    asset_server: Res<AssetServer>
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
@@ -44,6 +45,7 @@ pub fn spawn_env(
     ));
 
     spawn_trees(meshes, materials, commands);
+    spawn_houses(meshes, materials, commands, asset_server);
 
     commands.spawn((
         Camera3d::default(),
@@ -94,4 +96,38 @@ fn rnd_tree_coord() -> f32 {
         rng.random_range(2.0..=25.0)
     };
     random_number
+}
+
+fn spawn_houses(
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    commands: &mut Commands,
+    asset_server: Res<AssetServer>
+) {
+    let house_body = meshes.add(Cuboid::default());
+    let window = meshes.add(Cuboid { half_size: Vec3::new(0.21, 0.21, 0.51), ..default() });
+    let house_body_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
+    let window_mat = materials.add(Color::linear_rgb(0.0, 0.0, 0.0));
+
+    const N_HOUSES: usize = 25;
+    for _i in 0..N_HOUSES {
+        let x = rnd_tree_coord();
+        let z = rnd_tree_coord();
+        commands.spawn((
+            Mesh3d(house_body.clone()),
+            MeshMaterial3d(house_body_mat.clone()),
+            Transform::from_xyz(x, 0.5, z),
+        ));
+        commands.spawn((
+            Mesh3d(window.clone()),
+            MeshMaterial3d(window_mat.clone()),
+            Transform::from_xyz(x, 0.6, z),
+        ));
+    }
+
+    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/low_poly_japan_building/low_poly_japan_building.glb"));
+    commands.spawn((
+        SceneRoot(scene_handle),
+        Transform::from_xyz(4.0, 0.0, -8.0), // Position the scene as needed
+    ));
 }
