@@ -30,7 +30,7 @@ pub fn spawn_radar(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
-) -> Receiver<RadarCommand> {
+) -> (Receiver<RadarCommand>, Entity) {
     let radar_mount = meshes.add(Cuboid {
         half_size: Vec3::new(1.0, 0.4, 0.5),
         ..default()
@@ -62,13 +62,13 @@ pub fn spawn_radar(
     ));
 
     let pivot_object = meshes.add(Cuboid::default());
-    let mut pivot_id = commands.spawn((
+    let mut pivot = commands.spawn((
         Mesh3d(pivot_object),
         Visibility::Hidden,
         Transform::from_xyz(0.0, 1.3, 0.0),
         FollowOrientation
     ));
-    pivot_id.with_child((
+    pivot.with_child((
         Mesh3d(radar_hor_pole),
         MeshMaterial3d(radar_pole_mat.clone()),
         Transform::from_xyz(0.5, 0.0, 0.0)
@@ -76,19 +76,19 @@ pub fn spawn_radar(
             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
         Visibility::Visible
     ));
-    pivot_id.with_child((
+    pivot.with_child((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
         Transform::from_xyz(-0.65, 0.0, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
         Visibility::Visible
     ));
-    pivot_id.with_child((
+    pivot.with_child((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
         Transform::from_xyz(0.65, 0.0, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
         Visibility::Visible
     ));
-    pivot_id.with_child((
+    pivot.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
         Transform::from_xyz(1.3, 0.0, 0.0),
@@ -101,7 +101,7 @@ pub fn spawn_radar(
         run_tcp_listener(cmd_tx);
     });
 
-    cmd_rx
+    (cmd_rx, pivot.id())
 }
 
 pub enum RadarCommand {

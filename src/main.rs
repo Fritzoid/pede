@@ -49,8 +49,8 @@ fn setup(
 ) {
     env::spawn_env(&mut commands, &mut meshes, &mut materials);
 
-    let image = radar_cam::spawn_radar_cam(&mut commands, images);
-    let cmd_rx = radar::spawn_radar(&mut meshes, &mut materials, &mut commands);
+    let (cmd_rx, pivot) = radar::spawn_radar(&mut meshes, &mut materials, &mut commands);
+    let image = radar_cam::spawn_radar_cam(&mut commands, images, pivot);
     let stdin = stream::start_stream();
 
     commands.insert_resource(radar_cam::CameraRenderTexture {

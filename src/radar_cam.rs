@@ -31,6 +31,7 @@ pub struct CameraRenderTexture {
 pub fn spawn_radar_cam(
     commands: &mut Commands,
     mut images: ResMut<Assets<Image>>,
+    pivot: Entity,
 ) -> Handle<Image> {
 
     let radar_cam_pos = Vec3::new(1.3, 1.3, 0.0);
@@ -57,7 +58,7 @@ pub fn spawn_radar_cam(
 
     let image_handle = images.add(image);
 
-    commands.spawn((
+    commands.entity(pivot).with_child((
         Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z).looking_at(
             Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z),
             Vec3::Y,
@@ -69,7 +70,7 @@ pub fn spawn_radar_cam(
             ..default()
         },
         RadarCamera,
-        FollowOrientation
+        Visibility::Visible
     ));
     image_handle
 }
