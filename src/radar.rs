@@ -258,9 +258,13 @@ pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<
     };
     radar.current.elevation += step_el;
 
-    let angle_az = step_az.to_radians();
-    let angle_el = step_el.to_radians();
+    let angle_az = radar.current.azimuth.to_radians();
+    let angle_el = radar.current.elevation.to_radians();
+
     for (mut transform, _follow) in query.iter_mut() {
-        transform.rotate_around(Vec3::new(0.0, 1.3, 0.0),  Quat::from_rotation_x(angle_el) * Quat::from_rotation_y(angle_az));
+        // Set translation first.
+        transform.translation = Vec3::new(0.0, 1.3, 0.0);
+        // Then build the absolute rotation from current angles, not just incremental steps.
+        transform.rotation = Quat::from_rotation_y(angle_az) * Quat::from_rotation_x(angle_el);
     }
 }
