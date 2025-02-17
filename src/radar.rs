@@ -248,12 +248,12 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
             RadarCommand::Azimuth { az, tx } => {
                 println!("Setting azimuth to {:.2}", az);
                 radar.target.azimuth = az;
-                let _ = tx.send("O\r\n".to_string());
+                let _ = tx.send("No Errors.\r\n".to_string());
             }
             RadarCommand::Elevation { el, tx } => {
                 println!("Setting elevation to {:.2}", el);
                 radar.target.elevation = el;
-                let _ = tx.send("O\r\n".to_string());
+                let _ = tx.send("No Errors.\r\n".to_string());
             }
             RadarCommand::AzimuthQuery { tx } => {
                 let s = format!("{:.2}\r\n", radar.current.azimuth);
