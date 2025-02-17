@@ -105,10 +105,12 @@ pub fn spawn_radar(
 }
 
 pub enum RadarCommand {
+    Remote { tx: Sender<String> },
+    ServoOn { tx: Sender<String> },
     Azimuth { az: f32, tx: Sender<String> },
     Elevation { el: f32, tx: Sender<String> },
-    AzimuthQuery { tx: Sender<f32> },
-    ElevationQuery { tx: Sender<f32> },
+    AzimuthQuery { tx: Sender<String> },
+    ElevationQuery { tx: Sender<String> },
 }
 
 fn run_tcp_listener(cmd_tx: Sender<RadarCommand>) {
@@ -163,8 +165,7 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                             eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
                         } else {
                             // Wait for the reply from the main thread.
-                            if let Ok(az) = reply_rx.recv() {
-                                let response = format!("Current Radar Azimuth: {:.2}\n", az);
+                            if let Ok(response) = reply_rx.recv() {
                                 let _ = stream.write_all(response.as_bytes());
                             }
                         }
@@ -192,10 +193,33 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                             eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
                         } else {
                             // Wait for the reply from the main thread.
-                            if let Ok(az) = reply_rx.recv() {
-                                let response = format!("{:.2}\n", az);
+                            if let Ok(response) = reply_rx.recv() {
                                 let _ = stream.write_all(response.as_bytes());
                             }
+                        }
+                    }
+                } else if line.starts_with("REMOTE") {
+                    let (reply_tx, reply_rx) = mpsc::channel();
+                    let cmd = RadarCommand::Remote { tx: reply_tx };
+                    if let Err(e) = cmd_tx.send(cmd) {
+                        eprintln!("Failed to send REMOTE command: {:?}", e);
+                    } else {
+                        // Wait for the reply from the main thread.
+                        if let Ok(o) = reply_rx.recv() {
+                            println!("Sending {} back from REMOTE", o);
+                            let _ = stream.write_all(o.as_bytes());
+                        }
+                    }
+                } else if line.starts_with("SERVOON") {
+                    let (reply_tx, reply_rx) = mpsc::channel();
+                    let cmd = RadarCommand::ServoOn { tx: reply_tx };
+                    if let Err(e) = cmd_tx.send(cmd) {
+                        eprintln!("Failed to send SERVOON command: {:?}", e);
+                    } else {
+                        // Wait for the reply from the main thread.
+                        if let Ok(o) = reply_rx.recv() {
+                            println!("Sending {} back from SERVOON", o);
+                            let _ = stream.write_all(o.as_bytes());
                         }
                     }
                 } else {
@@ -214,21 +238,30 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
     let receiver = cmd_receiver.receiver.lock().unwrap();
     while let Ok(command) = receiver.try_recv() {
         match command {
+            RadarCommand::Remote { tx } => {
+                println!("Handle remote command");
+                let _ = tx.send("O\r\n".to_string());
+            } 
+            RadarCommand::ServoOn { tx } => {
+                let _ = tx.send("No Errors.\r\n".to_string());
+            } 
             RadarCommand::Azimuth { az, tx } => {
                 println!("Setting azimuth to {:.2}", az);
                 radar.target.azimuth = az;
-                let _ = tx.send("O".to_string());
+                let _ = tx.send("O\r\n".to_string());
             }
             RadarCommand::Elevation { el, tx } => {
                 println!("Setting elevation to {:.2}", el);
                 radar.target.elevation = el;
-                let _ = tx.send("O".to_string());
+                let _ = tx.send("O\r\n".to_string());
             }
             RadarCommand::AzimuthQuery { tx } => {
-                let _ = tx.send(radar.current.azimuth);
+                let s = format!("{:.2}\r\n", radar.current.azimuth);
+                let _ = tx.send(s);
             }
             RadarCommand::ElevationQuery { tx } => {
-                let _ = tx.send(radar.current.elevation);
+                let s = format!("{:.2}\r\n", radar.current.elevation);
+                let _ = tx.send(s);
             }
         }
     }
