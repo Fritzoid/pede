@@ -298,6 +298,6 @@ pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<
         // Set translation first.
         transform.translation = Vec3::new(0.0, 1.3, 0.0);
         // Then build the absolute rotation from current angles, not just incremental steps.
-        transform.rotation = Quat::from_rotation_y(angle_az) * Quat::from_rotation_x(angle_el);
+        transform.rotation = Quat::from_rotation_y(-angle_az) * Quat::from_rotation_x(angle_el);
     }
 }
