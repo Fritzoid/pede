@@ -34,7 +34,7 @@ pub fn spawn_radar_cam(
     pivot: Entity,
 ) -> Handle<Image> {
 
-    let radar_cam_pos = Vec3::new(1.3, 1.3, 0.0);
+    let radar_cam_pos = Vec3::new(0.0, 1.3, 0.0);
     let radar_cam_lookat = Vec3::new(0., 1.3, -10.);
 
     let size = Extent3d {

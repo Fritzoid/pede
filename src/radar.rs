@@ -71,7 +71,7 @@ pub fn spawn_radar(
     pivot.with_child((
         Mesh3d(radar_hor_pole),
         MeshMaterial3d(radar_pole_mat.clone()),
-        Transform::from_xyz(0.5, 0.0, 0.0)
+        Transform::from_xyz(0.0, 0.0, 0.0)
             .with_scale(Vec3::new(0.09, 2.0, 0.09))
             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
         Visibility::Visible
@@ -91,7 +91,7 @@ pub fn spawn_radar(
     pivot.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
-        Transform::from_xyz(1.3, 0.0, 0.0),
+        Transform::from_xyz(0.0, 0.0, 0.0),
         Visibility::Visible
     ));
 
@@ -145,9 +145,18 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                 let line = line.trim().to_uppercase();
                 if line.starts_with("AZIMUTH") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
+
+                    println!("azimuth received, parts: {}", parts.len());
+
+
+
+
                     if parts.len() == 2 {
                         let (reply_tx, reply_rx) = mpsc::channel();
                         if let Ok(az) = parts[1].parse::<f32>() {
+
+                            println!("azimuth received: {}", az);
+
                             let cmd = RadarCommand::Azimuth { az, tx: reply_tx };
                             if let Err(e) = cmd_tx.send(cmd) {
                                 eprintln!("Failed to send AZIMUTH command: {:?}", e);
@@ -157,6 +166,10 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                                     let _ = stream.write_all(o.as_bytes());
                                 }
                             }
+                        }
+                        else {
+                            println!("parse went to hell");
+
                         }
                     } else if parts.len() == 1 {
                         let (reply_tx, reply_rx) = mpsc::channel();
