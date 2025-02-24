@@ -127,7 +127,11 @@ fn spawn_houses(
 
     let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/low_poly_japan_building/low_poly_japan_building.glb"));
     commands.spawn((
-        SceneRoot(scene_handle),
-        Transform::from_xyz(4.0, 0.0, -8.0), // Position the scene as needed
+        SceneRoot(scene_handle.clone()),
+        Transform::from_xyz(7.0, 0.0, -14.0), // Position the scene as needed
+    ));
+    commands.spawn((
+        SceneRoot(scene_handle.clone()),
+        Transform::from_xyz(-7.0, 0.0, 14.0), // Position the scene as needed
     ));
 }
