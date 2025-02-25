@@ -66,7 +66,7 @@ pub fn spawn_radar(
         Mesh3d(pivot_object),
         Visibility::Hidden,
         Transform::from_xyz(0.0, 1.3, 0.0),
-        FollowOrientation
+        FollowOrientation,
     ));
     pivot.with_child((
         Mesh3d(radar_hor_pole),
@@ -74,25 +74,25 @@ pub fn spawn_radar(
         Transform::from_xyz(0.0, 0.0, 0.0)
             .with_scale(Vec3::new(0.09, 2.0, 0.09))
             .with_rotation(Quat::from_rotation_z(PI / 2.0)),
-        Visibility::Visible
+        Visibility::Visible,
     ));
     pivot.with_child((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
         Transform::from_xyz(-0.65, 0.0, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
-        Visibility::Visible
+        Visibility::Visible,
     ));
     pivot.with_child((
         Mesh3d(radar_antenna.clone()),
         MeshMaterial3d(radar_antennna_mat.clone()),
         Transform::from_xyz(0.65, 0.0, 0.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
-        Visibility::Visible
+        Visibility::Visible,
     ));
     pivot.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
         Transform::from_xyz(0.0, 0.0, 0.0),
-        Visibility::Visible
+        Visibility::Visible,
     ));
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
@@ -157,8 +157,7 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
                                     let _ = stream.write_all(o.as_bytes());
                                 }
                             }
-                        }
-                        else {
+                        } else {
                             println!("parse went to hell");
                         }
                     } else if parts.len() == 1 {
@@ -244,10 +243,10 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
             RadarCommand::Remote { tx } => {
                 println!("Handle remote command");
                 let _ = tx.send("O\r\n".to_string());
-            } 
+            }
             RadarCommand::ServoOn { tx } => {
                 let _ = tx.send("No Errors.\r\n".to_string());
-            } 
+            }
             RadarCommand::Azimuth { az, tx } => {
                 println!("Setting azimuth to {:.2}", az);
                 radar.target.azimuth = az;
@@ -270,7 +269,11 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
     }
 }
 
-pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<(&mut Transform, &FollowOrientation)>) {
+pub fn update_radar(
+    mut radar: ResMut<Radar>,
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &FollowOrientation)>,
+) {
     // Speed in degrees per second.
     let speed_az = 15.0;
     let dt = time.delta_secs();
@@ -283,7 +286,7 @@ pub fn update_radar(mut radar: ResMut<Radar>, time: Res<Time>, mut query: Query<
         diff_az.signum() * speed_az * dt
     };
     radar.current.azimuth += step_az;
-    
+
     // Update elevation.
     let diff_el = radar.target.elevation - radar.current.elevation;
     let speed_el = 20.0;

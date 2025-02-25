@@ -4,6 +4,7 @@ use bevy_egui::EguiPlugin;
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 use std::sync::Mutex;
 
+mod config;
 mod env;
 mod radar;
 mod radar_cam;
@@ -11,7 +12,16 @@ mod stream;
 mod ui;
 
 fn main() {
+    let config = config::Config::from_file("config.toml")
+        .expect("Failed to load configuration from config.toml");
+    let frame_buffer = radar_cam::FrameBuffer::new(
+        config.radar_cam_render_width,
+        config.radar_cam_render_height,
+    );
+
     App::new()
+        .insert_resource(config)
+        .insert_resource(frame_buffer)
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 mode: WindowMode::Windowed,
@@ -46,13 +56,22 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     images: ResMut<Assets<Image>>,
-    asset_server: Res<AssetServer>
+    asset_server: Res<AssetServer>,
+    frame_buffer: Res<radar_cam::FrameBuffer>,
+    config: Res<config::Config>
 ) {
     env::spawn_env(&mut commands, &mut meshes, &mut materials, asset_server);
 
     let (cmd_rx, pivot) = radar::spawn_radar(&mut meshes, &mut materials, &mut commands);
-    let image = radar_cam::spawn_radar_cam(meshes, &mut materials, &mut commands, images, pivot);
-    let stdin = stream::start_stream();
+    let image = radar_cam::spawn_radar_cam(
+        meshes,
+        &mut materials,
+        &mut commands,
+        images,
+        pivot,
+        frame_buffer,
+    );
+    let stdin = stream::start_stream(config.radar_cam_render_width, config.radar_cam_render_height);
 
     commands.insert_resource(radar_cam::CameraRenderTexture {
         handle: image,

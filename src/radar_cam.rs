@@ -2,20 +2,42 @@ use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
-use once_cell::sync::Lazy;
 use std::io::Write;
 use std::ops::Deref;
 use std::process::ChildStdin;
 use std::sync::{Arc, Mutex};
 
-static EXPORT_WIDTH: u32 = 1280;
-static EXPORT_HEIGHT: u32 = 720;
-static ONE_FRAME: Lazy<Arc<Mutex<Vec<u8>>>> = Lazy::new(|| {
-    let capacity: usize = (EXPORT_HEIGHT * EXPORT_WIDTH * 4).try_into().expect("crap");
-    let mut vec = Vec::with_capacity(capacity);
-    vec.resize(capacity, 0);
-    Arc::new(Mutex::new(vec))
-});
+#[derive(Resource)]
+pub struct FrameBuffer {
+    width: u32,
+    height: u32,
+    buffer: Arc<Mutex<Vec<u8>>>,
+}
+
+impl Default for FrameBuffer {
+    fn default() -> Self {
+        let width = 1280;
+        let height = 720;
+
+        let buffer_size = width as usize * height as usize * 4;
+        Self {
+            width,
+            height,
+            buffer: Arc::new(Mutex::new(vec![0u8; buffer_size])),
+        }
+    }
+}
+
+impl FrameBuffer {
+    pub fn new(width: u32, height: u32) -> Self {
+        let size = width as usize * height as usize * 4;
+        Self {
+            width,
+            height,
+            buffer: Arc::new(Mutex::new(vec![0u8; size])),
+        }
+    }
+}
 
 #[derive(Component)]
 struct RadarCamera;
@@ -32,14 +54,14 @@ pub fn spawn_radar_cam(
     commands: &mut Commands,
     mut images: ResMut<Assets<Image>>,
     pivot: Entity,
+    frame_buffer: Res<FrameBuffer>,
 ) -> Handle<Image> {
-
     let radar_cam_pos = Vec3::new(0.0, 1.3, 0.0);
     let radar_cam_lookat = Vec3::new(0., 1.3, -10.);
 
     let size = Extent3d {
-        width: EXPORT_WIDTH,
-        height: EXPORT_HEIGHT,
+        width: frame_buffer.width,
+        height: frame_buffer.height,
         depth_or_array_layers: 1,
         ..default()
     };
@@ -70,11 +92,11 @@ pub fn spawn_radar_cam(
             ..default()
         },
         RadarCamera,
-        Visibility::Visible
+        Visibility::Visible,
     ));
     let radar_screen = meshes.add(Plane3d {
-            normal: Dir3::Z,
-            half_size: Vec2::new(0.4, 0.2),
+        normal: Dir3::Z,
+        half_size: Vec2::new(0.4, 0.2),
         ..default()
     });
     let material_handle = materials.add(StandardMaterial {
@@ -92,18 +114,23 @@ pub fn spawn_radar_cam(
     image_handle
 }
 
-pub fn stream_frames(mut resource: ResMut<CameraRenderTexture>, mut commands: Commands) {
+pub fn stream_frames(
+    mut resource: ResMut<CameraRenderTexture>,
+    mut commands: Commands,
+    frame_buffer: Res<FrameBuffer>,
+) {
+    let buffer_clone = frame_buffer.buffer.clone();
     let sc = Screenshot::image(resource.handle.clone());
-    commands.spawn(sc).observe(save_to_buffer());
-    let buffer = ONE_FRAME.lock().unwrap();
+    commands.spawn(sc).observe(save_to_buffer(buffer_clone));
+    let buffer = frame_buffer.buffer.lock().unwrap();
     let _ = resource.ffmpeg_stdin.write(&buffer);
 }
 
-pub fn save_to_buffer() -> impl FnMut(Trigger<ScreenshotCaptured>) {
+pub fn save_to_buffer(buffer: Arc<Mutex<Vec<u8>>>) -> impl FnMut(Trigger<ScreenshotCaptured>) {
     move |trigger| {
         let img = trigger.event().deref().clone();
         let data = &img.data;
-        let mut buffer = ONE_FRAME.lock().unwrap();
+        let mut buffer = buffer.lock().unwrap();
         buffer.copy_from_slice(data);
     }
 }

@@ -2,7 +2,7 @@ use std::process::{ChildStdin, Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
-pub fn start_stream() -> ChildStdin {
+pub fn start_stream(width: u32, height: u32) -> ChildStdin {
     let mut mediamtx = Command::new("mediamtx.exe")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -33,7 +33,7 @@ pub fn start_stream() -> ChildStdin {
             "-f",
             "rawvideo", // Input format is raw video
             "-video_size",
-            "1280x720", // Replace with your texture size
+            &format!("{}x{}", width, height), // Replace with your texture size
             "-framerate",
             "25", // Replace with your target framerate
             "-use_wallclock_as_timestamps",
@@ -48,12 +48,12 @@ pub fn start_stream() -> ChildStdin {
             "25", // Output format
             "-g",
             "25",
-            "-pix_fmt", 
+            "-pix_fmt",
             "yuv420p",
             "-preset",
             "ultrafast",
             "-f",
-            "rtsp",                       // Output format
+            "rtsp", // Output format
             "-rtsp_transport",
             "udp",
             "rtsp://127.0.0.1:8554/live", // RTSP output URL

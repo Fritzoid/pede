@@ -11,7 +11,7 @@ pub fn spawn_env(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    asset_server: Res<AssetServer>
+    asset_server: Res<AssetServer>,
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
@@ -102,10 +102,13 @@ fn spawn_houses(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
-    asset_server: Res<AssetServer>
+    asset_server: Res<AssetServer>,
 ) {
     let house_body = meshes.add(Cuboid::default());
-    let window = meshes.add(Cuboid { half_size: Vec3::new(0.21, 0.21, 0.51), ..default() });
+    let window = meshes.add(Cuboid {
+        half_size: Vec3::new(0.21, 0.21, 0.51),
+        ..default()
+    });
     let house_body_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let window_mat = materials.add(Color::linear_rgb(0.0, 0.0, 0.0));
 
@@ -125,7 +128,10 @@ fn spawn_houses(
         ));
     }
 
-    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("models/low_poly_japan_building/low_poly_japan_building.glb"));
+    let scene_handle = asset_server.load(
+        GltfAssetLabel::Scene(0)
+            .from_asset("models/low_poly_japan_building/low_poly_japan_building.glb"),
+    );
     commands.spawn((
         SceneRoot(scene_handle.clone()),
         Transform::from_xyz(7.0, 0.0, -14.0), // Position the scene as needed
