@@ -70,6 +70,7 @@ fn setup(
         images,
         pivot,
         frame_buffer,
+        &config
     );
     let stdin = stream::start_stream(config.radar_cam_render_width, config.radar_cam_render_height);
 

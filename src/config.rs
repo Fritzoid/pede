@@ -6,6 +6,7 @@ use std::{error::Error, fs};
 pub struct Config {
     pub radar_cam_render_width: u32,
     pub radar_cam_render_height: u32,
+    pub radar_cam_vertical_fov: f32,
 }
 
 impl Config {

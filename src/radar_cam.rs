@@ -6,11 +6,12 @@ use std::io::Write;
 use std::ops::Deref;
 use std::process::ChildStdin;
 use std::sync::{Arc, Mutex};
+use crate::config;
 
 #[derive(Resource)]
 pub struct FrameBuffer {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
     buffer: Arc<Mutex<Vec<u8>>>,
 }
 
@@ -40,7 +41,7 @@ impl FrameBuffer {
 }
 
 #[derive(Component)]
-struct RadarCamera;
+pub struct RadarCamera;
 
 #[derive(Resource)]
 pub struct CameraRenderTexture {
@@ -55,6 +56,7 @@ pub fn spawn_radar_cam(
     mut images: ResMut<Assets<Image>>,
     pivot: Entity,
     frame_buffer: Res<FrameBuffer>,
+    config: &Res<config::Config>
 ) -> Handle<Image> {
     let radar_cam_pos = Vec3::new(0.0, 1.3, 0.0);
     let radar_cam_lookat = Vec3::new(0., 1.3, -10.);
@@ -89,6 +91,10 @@ pub fn spawn_radar_cam(
         Camera {
             target: image_handle.clone().into(),
             order: 1,
+            ..default()
+        },
+        PerspectiveProjection {
+            fov: config.radar_cam_vertical_fov.to_radians(),
             ..default()
         },
         RadarCamera,
