@@ -48,7 +48,7 @@ pub fn spawn_radar(
     let radar_mount_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_pole_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_antennna_mat = materials.add(Color::linear_rgb(0.1, 0.1, 0.1));
-    let radar_cam_box_mat = materials.add(Color::linear_rgb(0.8, 0.8, 0.8));
+    let radar_cam_box_mat = materials.add(Color::linear_rgb(0.8, 0.2, 0.2));
 
     commands.spawn((
         Mesh3d(radar_mount),
@@ -91,7 +91,7 @@ pub fn spawn_radar(
     pivot.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::from_xyz(0.0, 0.0, -0.1),
         Visibility::Visible,
     ));
 
@@ -275,7 +275,7 @@ pub fn update_radar(
     mut query: Query<(&mut Transform, &FollowOrientation)>,
 ) {
     // Speed in degrees per second.
-    let speed_az = 15.0;
+    let speed_az = 25.0;
     let dt = time.delta_secs();
 
     // Update azimuth.
@@ -289,7 +289,7 @@ pub fn update_radar(
 
     // Update elevation.
     let diff_el = radar.target.elevation - radar.current.elevation;
-    let speed_el = 20.0;
+    let speed_el = 25.0;
     let step_el = if diff_el.abs() < speed_el * dt {
         diff_el
     } else {
@@ -301,9 +301,6 @@ pub fn update_radar(
     let angle_el = radar.current.elevation.to_radians();
 
     for (mut transform, _follow) in query.iter_mut() {
-        // Set translation first.
-        transform.translation = Vec3::new(0.0, 1.3, 0.0);
-        // Then build the absolute rotation from current angles, not just incremental steps.
         transform.rotation = Quat::from_rotation_y(-angle_az) * Quat::from_rotation_x(angle_el);
     }
 }

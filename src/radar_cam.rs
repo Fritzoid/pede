@@ -59,7 +59,6 @@ pub fn spawn_radar_cam(
     config: &Res<config::Config>
 ) -> Handle<Image> {
     let radar_cam_pos = Vec3::new(0.0, 1.3, 0.0);
-    let radar_cam_lookat = Vec3::new(0., 1.3, -10.);
 
     let size = Extent3d {
         width: frame_buffer.width,
@@ -83,10 +82,7 @@ pub fn spawn_radar_cam(
     let image_handle = images.add(image);
 
     commands.entity(pivot).with_child((
-        Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z).looking_at(
-            Vec3::new(radar_cam_lookat.x, radar_cam_lookat.y, radar_cam_lookat.z),
-            Vec3::Y,
-        ),
+        Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z),
         Camera3d::default(),
         Camera {
             target: image_handle.clone().into(),
