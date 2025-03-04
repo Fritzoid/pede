@@ -81,6 +81,16 @@ pub fn spawn_radar_cam(
 
     let image_handle = images.add(image);
 
+    let pp_component = PerspectiveProjection {
+        fov: config.radar_cam_vertical_fov.to_radians(),
+        ..default()
+    };
+    
+    println!("Fov is: {}", pp_component.fov);
+    println!("far is: {}", pp_component.far);
+    println!("near is: {}", pp_component.near);
+    println!("ar is: {}", pp_component.aspect_ratio);
+
     commands.entity(pivot).with_child((
         Transform::from_xyz(radar_cam_pos.x, radar_cam_pos.y, radar_cam_pos.z),
         Camera3d::default(),
@@ -89,10 +99,7 @@ pub fn spawn_radar_cam(
             order: 1,
             ..default()
         },
-        PerspectiveProjection {
-            fov: config.radar_cam_vertical_fov.to_radians(),
-            ..default()
-        },
+        pp_component,
         RadarCamera,
         Visibility::Visible,
     ));

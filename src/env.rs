@@ -147,11 +147,11 @@ fn spawn_houses(
     commands.spawn((
         Mesh3d(spike_house.clone()),
         MeshMaterial3d(spike_house_mat.clone()),
-        Transform::from_xyz(-5.0, 0.0, -12.0),
+        Transform::from_xyz(-6.0, 0.0, -12.0),
     ));
     commands.spawn((
         Mesh3d(spike_house.clone()),
         MeshMaterial3d(spike_house_mat.clone()),
-        Transform::from_xyz(8.0, 0.0, 18.0).with_scale(Vec3::new(1.0, 5.0, 1.0)),
+        Transform::from_xyz(6.0, 0.0, 18.0).with_scale(Vec3::new(1.0, 5.0, 1.0)),
     ));
 }

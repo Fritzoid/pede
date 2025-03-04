@@ -32,6 +32,9 @@ pub fn ui_system(
                 ui.label(format!("Height: {}", framebuffer.height));
                 ui.label(format!("Vertical fov: {:>6.2}", projection.fov.to_degrees()));
                 ui.label(format!("Horizontal fov: {:>6.2}", horizontal_fov.to_degrees()));
+                ui.label(format!("Far plane: {:>6.2}", projection.far));
+                ui.label(format!("Near plane: {:>6.2}", projection.near));
+                ui.label(format!("Aspect ratio: {:>6.2}", projection.aspect_ratio));
             });
         });
 
