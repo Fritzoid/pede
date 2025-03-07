@@ -48,6 +48,7 @@ fn main() {
         .add_systems(FixedUpdate, radar_cam::stream_frames)
         .add_systems(Update, radar::handle_commands)
         .add_systems(Update, radar::update_radar)
+        .add_systems(Update, radar_cam::force_projection_update)
         .run();
 }
 

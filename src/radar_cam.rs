@@ -143,3 +143,14 @@ pub fn save_to_buffer(buffer: Arc<Mutex<Vec<u8>>>) -> impl FnMut(Trigger<Screens
         buffer.copy_from_slice(data);
     }
 }
+
+pub fn force_projection_update(mut query: Query<&mut PerspectiveProjection, With<RadarCamera>>) {
+    for mut projection in &mut query {
+        *projection = PerspectiveProjection {
+            fov: projection.fov,
+            aspect_ratio: projection.aspect_ratio, 
+            near: projection.near,
+            far: projection.far,
+        };
+    }
+}
