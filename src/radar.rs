@@ -1,10 +1,11 @@
 use bevy::prelude::*;
 use std::f32::consts::PI;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
+use std::str;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -133,99 +134,98 @@ fn run_tcp_listener(cmd_tx: Sender<RadarCommand>) {
 }
 
 fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
-    let mut reader = BufReader::new(stream.try_clone().expect("Failed to clone stream"));
+    let mut buffer = [0u8; 1024]; // Buffer for incoming data
+    let mut data = Vec::new(); // Accumulates command bytes
+
     loop {
-        let mut line = String::new();
-        match reader.read_line(&mut line) {
-            Ok(0) => {
-                // End-of-stream (client disconnected)
-                break;
-            }
-            Ok(_) => {
-                let line = line.trim().to_uppercase();
-                if line.starts_with("AZIMUTH") {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() == 2 {
-                        let (reply_tx, reply_rx) = mpsc::channel();
-                        if let Ok(az) = parts[1].parse::<f32>() {
-                            let cmd = RadarCommand::Azimuth { az, tx: reply_tx };
+        match stream.read(&mut buffer) {
+            Ok(0) => break, // Client disconnected
+            Ok(n) => {
+                data.extend_from_slice(&buffer[..n]); // Append new data
+
+                while let Some(pos) = data.iter().position(|&b| b == b'\r') {
+                    let command_bytes = data.drain(..=pos).collect::<Vec<u8>>(); // Extract command (including \r)
+                    
+                    // Convert bytes to a string
+                    if let Ok(command_str) = str::from_utf8(&command_bytes[..command_bytes.len()-1]) { // Remove \r
+                        let line = command_str.trim().to_uppercase();
+
+                        if line.starts_with("AZIMUTH") {
+                            let parts: Vec<&str> = line.split_whitespace().collect();
+                            if parts.len() == 2 {
+                                let (reply_tx, reply_rx) = mpsc::channel();
+                                if let Ok(az) = parts[1].parse::<f32>() {
+                                    let cmd = RadarCommand::Azimuth { az, tx: reply_tx };
+                                    if let Err(e) = cmd_tx.send(cmd) {
+                                        eprintln!("Failed to send AZIMUTH command: {:?}", e);
+                                    } else {
+                                        if let Ok(o) = reply_rx.recv() {
+                                            let _ = stream.write_all(o.as_bytes());
+                                        }
+                                    }
+                                }
+                            } else if parts.len() == 1 {
+                                let (reply_tx, reply_rx) = mpsc::channel();
+                                let cmd = RadarCommand::AzimuthQuery { tx: reply_tx };
+                                if let Err(e) = cmd_tx.send(cmd) {
+                                    eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
+                                } else {
+                                    if let Ok(response) = reply_rx.recv() {
+                                        let _ = stream.write_all(response.as_bytes());
+                                    }
+                                }
+                            }
+                        } else if line.starts_with("ELEVATION") {
+                            let parts: Vec<&str> = line.split_whitespace().collect();
+                            if parts.len() == 2 {
+                                let (reply_tx, reply_rx) = mpsc::channel();
+                                if let Ok(el) = parts[1].parse::<f32>() {
+                                    let cmd = RadarCommand::Elevation { el, tx: reply_tx };
+                                    if let Err(e) = cmd_tx.send(cmd) {
+                                        eprintln!("Failed to send ELEVATION command: {:?}", e);
+                                    } else {
+                                        if let Ok(o) = reply_rx.recv() {
+                                            let _ = stream.write_all(o.as_bytes());
+                                        }
+                                    }
+                                }
+                            } else if parts.len() == 1 {
+                                let (reply_tx, reply_rx) = mpsc::channel();
+                                let cmd = RadarCommand::ElevationQuery { tx: reply_tx };
+                                if let Err(e) = cmd_tx.send(cmd) {
+                                    eprintln!("Failed to send ELEVATION QUERY command: {:?}", e);
+                                } else {
+                                    if let Ok(response) = reply_rx.recv() {
+                                        let _ = stream.write_all(response.as_bytes());
+                                    }
+                                }
+                            }
+                        } else if line.starts_with("REMOTE") {
+                            let (reply_tx, reply_rx) = mpsc::channel();
+                            let cmd = RadarCommand::Remote { tx: reply_tx };
                             if let Err(e) = cmd_tx.send(cmd) {
-                                eprintln!("Failed to send AZIMUTH command: {:?}", e);
+                                eprintln!("Failed to send REMOTE command: {:?}", e);
                             } else {
-                                // Wait for the reply from the main thread.
+                                if let Ok(o) = reply_rx.recv() {
+                                    let _ = stream.write_all(o.as_bytes());
+                                }
+                            }
+                        } else if line.starts_with("SERVOON") {
+                            let (reply_tx, reply_rx) = mpsc::channel();
+                            let cmd = RadarCommand::ServoOn { tx: reply_tx };
+                            if let Err(e) = cmd_tx.send(cmd) {
+                                eprintln!("Failed to send SERVOON command: {:?}", e);
+                            } else {
                                 if let Ok(o) = reply_rx.recv() {
                                     let _ = stream.write_all(o.as_bytes());
                                 }
                             }
                         } else {
-                            println!("parse went to hell");
+                            let _ = stream.write_all(b"Unknown command\n");
                         }
-                    } else if parts.len() == 1 {
-                        let (reply_tx, reply_rx) = mpsc::channel();
-                        let cmd = RadarCommand::AzimuthQuery { tx: reply_tx };
-                        if let Err(e) = cmd_tx.send(cmd) {
-                            eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
-                        } else {
-                            // Wait for the reply from the main thread.
-                            if let Ok(response) = reply_rx.recv() {
-                                let _ = stream.write_all(response.as_bytes());
-                            }
-                        }
-                    }
-                } else if line.starts_with("ELEVATION") {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() == 2 {
-                        let (reply_tx, reply_rx) = mpsc::channel();
-                        if let Ok(el) = parts[1].parse::<f32>() {
-                            let cmd = RadarCommand::Elevation { el, tx: reply_tx };
-                            if let Err(e) = cmd_tx.send(cmd) {
-                                eprintln!("Failed to send ELEVATION command: {:?}", e);
-                            } else {
-                                // Wait for the reply from the main thread.
-                                if let Ok(o) = reply_rx.recv() {
-                                    let _ = stream.write_all(o.as_bytes());
-                                }
-                            }
-                        }
-                    } else if parts.len() == 1 {
-                        // For a QUERY, create a one-shot channel for the reply.
-                        let (reply_tx, reply_rx) = mpsc::channel();
-                        let cmd = RadarCommand::ElevationQuery { tx: reply_tx };
-                        if let Err(e) = cmd_tx.send(cmd) {
-                            eprintln!("Failed to send AZIMUTH QUERY command: {:?}", e);
-                        } else {
-                            // Wait for the reply from the main thread.
-                            if let Ok(response) = reply_rx.recv() {
-                                let _ = stream.write_all(response.as_bytes());
-                            }
-                        }
-                    }
-                } else if line.starts_with("REMOTE") {
-                    let (reply_tx, reply_rx) = mpsc::channel();
-                    let cmd = RadarCommand::Remote { tx: reply_tx };
-                    if let Err(e) = cmd_tx.send(cmd) {
-                        eprintln!("Failed to send REMOTE command: {:?}", e);
                     } else {
-                        // Wait for the reply from the main thread.
-                        if let Ok(o) = reply_rx.recv() {
-                            println!("Sending {} back from REMOTE", o);
-                            let _ = stream.write_all(o.as_bytes());
-                        }
+                        eprintln!("Invalid UTF-8 received");
                     }
-                } else if line.starts_with("SERVOON") {
-                    let (reply_tx, reply_rx) = mpsc::channel();
-                    let cmd = RadarCommand::ServoOn { tx: reply_tx };
-                    if let Err(e) = cmd_tx.send(cmd) {
-                        eprintln!("Failed to send SERVOON command: {:?}", e);
-                    } else {
-                        // Wait for the reply from the main thread.
-                        if let Ok(o) = reply_rx.recv() {
-                            println!("Sending {} back from SERVOON", o);
-                            let _ = stream.write_all(o.as_bytes());
-                        }
-                    }
-                } else {
-                    let _ = stream.write_all(b"Unknown command\n");
                 }
             }
             Err(e) => {
