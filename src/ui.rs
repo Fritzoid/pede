@@ -1,14 +1,14 @@
+use crate::radar;
+use crate::radar_cam;
+use crate::stream;
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
-use crate::radar_cam;
-use crate::radar;
-
 
 pub fn ui_system(
-    mut contexts: EguiContexts, 
-    framebuffer: Res<radar_cam::FrameBuffer>, 
+    mut contexts: EguiContexts,
+    framebuffer: Res<stream::FrameBuffer>,
     radar_state: Res<radar::Radar>,
-    query: Query<&PerspectiveProjection, With<radar_cam::RadarCamera>>
+    query: Query<&PerspectiveProjection, With<radar_cam::RadarCamera>>,
 ) {
     let ctx = contexts.ctx_mut();
 
@@ -20,7 +20,9 @@ pub fn ui_system(
     });
 
     let projection = query.get_single().unwrap();
-    let horizontal_fov = 2.0 * ((projection.fov / 2.0).tan() * (framebuffer.width as f32 / framebuffer.height as f32)).atan();
+    let horizontal_fov = 2.0
+        * ((projection.fov / 2.0).tan() * (framebuffer.width as f32 / framebuffer.height as f32))
+            .atan();
 
     // Top panel
     egui::TopBottomPanel::top("top_panel")
@@ -30,8 +32,14 @@ pub fn ui_system(
                 ui.label("Framebuffer:");
                 ui.label(format!("Width: {}", framebuffer.width));
                 ui.label(format!("Height: {}", framebuffer.height));
-                ui.label(format!("Vertical fov: {:>6.2}", projection.fov.to_degrees()));
-                ui.label(format!("Horizontal fov: {:>6.2}", horizontal_fov.to_degrees()));
+                ui.label(format!(
+                    "Vertical fov: {:>6.2}",
+                    projection.fov.to_degrees()
+                ));
+                ui.label(format!(
+                    "Horizontal fov: {:>6.2}",
+                    horizontal_fov.to_degrees()
+                ));
                 ui.label(format!("Far plane: {:>6.2}", projection.far));
                 ui.label(format!("Near plane: {:>6.2}", projection.near));
                 ui.label(format!("Aspect ratio: {:>6.2}", projection.aspect_ratio));
@@ -44,10 +52,22 @@ pub fn ui_system(
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Radarstate:");
-                ui.label(format!("Current azimuth: {:>6.2}", radar_state.current.azimuth));
-                ui.label(format!("Current elevation: {:>6.2}", radar_state.current.elevation));
-                ui.label(format!("Target azimuth: {:>6.2}", radar_state.target.azimuth));
-                ui.label(format!("Target elevation: {:>6.2}", radar_state.target.elevation));
+                ui.label(format!(
+                    "Current azimuth: {:>6.2}",
+                    radar_state.current.azimuth
+                ));
+                ui.label(format!(
+                    "Current elevation: {:>6.2}",
+                    radar_state.current.elevation
+                ));
+                ui.label(format!(
+                    "Target azimuth: {:>6.2}",
+                    radar_state.target.azimuth
+                ));
+                ui.label(format!(
+                    "Target elevation: {:>6.2}",
+                    radar_state.target.elevation
+                ));
             });
         });
 }

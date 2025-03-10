@@ -1,8 +1,51 @@
+use bevy::prelude::*;
+use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
+use std::io::Write;
+use std::ops::Deref;
 use std::process::{ChildStdin, Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-pub fn start_stream(width: u32, height: u32) -> ChildStdin {
+#[derive(Resource)]
+pub struct CameraRenderTexture {
+    pub handle: Handle<Image>,
+    pub ffmpeg_stdin: ChildStdin,
+}
+
+#[derive(Resource)]
+pub struct FrameBuffer {
+    pub width: u32,
+    pub height: u32,
+    buffer: Arc<Mutex<Vec<u8>>>,
+}
+
+impl Default for FrameBuffer {
+    fn default() -> Self {
+        let width = 1280;
+        let height = 720;
+
+        let buffer_size = width as usize * height as usize * 4;
+        Self {
+            width,
+            height,
+            buffer: Arc::new(Mutex::new(vec![0u8; buffer_size])),
+        }
+    }
+}
+
+impl FrameBuffer {
+    pub fn new(width: u32, height: u32) -> Self {
+        let size = width as usize * height as usize * 4;
+        Self {
+            width,
+            height,
+            buffer: Arc::new(Mutex::new(vec![0u8; size])),
+        }
+    }
+}
+
+pub fn start_stream(commands: &mut Commands, image: Handle<Image>, width: u32, height: u32) {
     let mut mediamtx = Command::new("mediamtx.exe")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -79,5 +122,30 @@ pub fn start_stream(width: u32, height: u32) -> ChildStdin {
             }
         });
     }
-    ffmpeg_stdin
+
+    commands.insert_resource(CameraRenderTexture {
+        handle: image,
+        ffmpeg_stdin: ffmpeg_stdin,
+    });
+}
+
+pub fn stream_frames(
+    mut resource: ResMut<CameraRenderTexture>,
+    mut commands: Commands,
+    frame_buffer: Res<FrameBuffer>,
+) {
+    let buffer_clone = frame_buffer.buffer.clone();
+    let sc = Screenshot::image(resource.handle.clone());
+    commands.spawn(sc).observe(save_to_buffer(buffer_clone));
+    let buffer = frame_buffer.buffer.lock().unwrap();
+    let _ = resource.ffmpeg_stdin.write(&buffer);
+}
+
+fn save_to_buffer(buffer: Arc<Mutex<Vec<u8>>>) -> impl FnMut(Trigger<ScreenshotCaptured>) {
+    move |trigger| {
+        let img = trigger.event().deref().clone();
+        let data = &img.data;
+        let mut buffer = buffer.lock().unwrap();
+        buffer.copy_from_slice(data);
+    }
 }

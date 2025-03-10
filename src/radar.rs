@@ -2,10 +2,10 @@ use bevy::prelude::*;
 use std::f32::consts::PI;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::str;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
-use std::str;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -18,10 +18,28 @@ pub struct RadarState {
     pub elevation: f32,
 }
 
+impl Default for RadarState {
+    fn default() -> Self {
+        Self {
+            azimuth: 0.0,
+            elevation: 0.0,
+        }
+    }
+}
+
 #[derive(Resource)]
 pub struct Radar {
     pub current: RadarState,
     pub target: RadarState,
+}
+
+impl Default for Radar {
+    fn default() -> Self {
+        Self {
+            current: RadarState::default(),
+            target: RadarState::default(),
+        }
+    }
 }
 
 #[derive(Component, Debug)]
@@ -31,7 +49,7 @@ pub fn spawn_radar(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
-) -> (Receiver<RadarCommand>, Entity) {
+) -> Entity {
     let radar_mount = meshes.add(Cuboid {
         half_size: Vec3::new(1.0, 0.4, 0.5),
         ..default()
@@ -50,6 +68,16 @@ pub fn spawn_radar(
     let radar_pole_mat = materials.add(Color::linear_rgb(0.5, 0.5, 0.5));
     let radar_antennna_mat = materials.add(Color::linear_rgb(0.1, 0.1, 0.1));
     let radar_cam_box_mat = materials.add(Color::linear_rgb(0.8, 0.2, 0.2));
+
+    let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
+
+    commands.insert_resource(CommandReceiver {
+        receiver: Mutex::new(cmd_rx),
+    });
+
+    thread::spawn(move || {
+        run_tcp_listener(cmd_tx);
+    });
 
     commands.spawn((
         Mesh3d(radar_mount),
@@ -96,13 +124,7 @@ pub fn spawn_radar(
         Visibility::Visible,
     ));
 
-    let (cmd_tx, cmd_rx) = mpsc::channel::<RadarCommand>();
-
-    thread::spawn(move || {
-        run_tcp_listener(cmd_tx);
-    });
-
-    (cmd_rx, pivot.id())
+    pivot.id()
 }
 
 pub enum RadarCommand {
@@ -145,9 +167,12 @@ fn handle_client(mut stream: TcpStream, cmd_tx: Sender<RadarCommand>) {
 
                 while let Some(pos) = data.iter().position(|&b| b == b'\r') {
                     let command_bytes = data.drain(..=pos).collect::<Vec<u8>>(); // Extract command (including \r)
-                    
+
                     // Convert bytes to a string
-                    if let Ok(command_str) = str::from_utf8(&command_bytes[..command_bytes.len()-1]) { // Remove \r
+                    if let Ok(command_str) =
+                        str::from_utf8(&command_bytes[..command_bytes.len() - 1])
+                    {
+                        // Remove \r
                         let line = command_str.trim().to_uppercase();
 
                         if line.starts_with("AZIMUTH") {

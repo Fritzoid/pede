@@ -39,7 +39,14 @@ pub fn spawn_env(
     ));
 
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(5000.0, 5000.0).subdivisions(10))),
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(5000.0, 5000.0)
+                    .subdivisions(10),
+            ),
+        ),
         MeshMaterial3d(materials.add(Color::from(LIGHT_GREEN))),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
@@ -141,7 +148,10 @@ fn spawn_houses(
         Transform::from_xyz(-7.0, 0.0, 14.0),
     ));
 
-    let spike_house = meshes.add(Cone { radius: 1.0, height: 20.0 });
+    let spike_house = meshes.add(Cone {
+        radius: 1.0,
+        height: 20.0,
+    });
     let spike_house_mat = materials.add(Color::linear_rgb(0.3, 0.3, 0.9));
 
     commands.spawn((
