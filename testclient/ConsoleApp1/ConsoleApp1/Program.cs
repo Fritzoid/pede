@@ -12,8 +12,8 @@ namespace TcpConsoleClient
       {
         using (TcpClient client = new TcpClient(AddressFamily.InterNetwork))
         {
-//            client.Connect("127.0.0.1", 7878);
-            client.Connect("192.168.104.84", 10100);
+            client.Connect("127.0.0.1", 7878);
+//            client.Connect("192.168.104.84", 10100);
             using (NetworkStream stream = client.GetStream())
             {
                 //client.NoDelay = true;

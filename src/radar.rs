@@ -120,7 +120,7 @@ pub fn spawn_radar(
     pivot.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
-        Transform::from_xyz(0.0, 0.0, -0.1),
+        Transform::from_xyz(1.20, 0.0, -0.1),
         Visibility::Visible,
     ));
 
@@ -299,6 +299,12 @@ pub fn update_radar(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &FollowOrientation)>,
 ) {
+    if radar.target.azimuth == radar.current.azimuth
+        && radar.target.elevation == radar.current.elevation
+    {
+        return;
+    }
+
     // Speed in degrees per second.
     let speed_az = 25.0;
     let dt = time.delta_secs();
@@ -324,6 +330,9 @@ pub fn update_radar(
 
     let angle_az = radar.current.azimuth.to_radians();
     let angle_el = radar.current.elevation.to_radians();
+
+    println!("diff_az: {}, step_az: {}, step_az * dt {}, angle_az: {}", diff_az, step_az, step_az * dt, angle_az);
+    println!("diff_el: {}, step_el: {}, step_el * dt {}, angle_el: {}", diff_el, step_el, step_el * dt, angle_el);
 
     for (mut transform, _follow) in query.iter_mut() {
         transform.rotation = Quat::from_rotation_y(-angle_az) * Quat::from_rotation_x(angle_el);
