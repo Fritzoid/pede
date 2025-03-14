@@ -6,6 +6,7 @@ use std::str;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
+use crate::config;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -298,6 +299,7 @@ pub fn update_radar(
     mut radar: ResMut<Radar>,
     time: Res<Time>,
     mut query: Query<(&mut Transform, &FollowOrientation)>,
+    config: Res<config::Config>,
 ) {
     if radar.target.azimuth == radar.current.azimuth
         && radar.target.elevation == radar.current.elevation
@@ -331,8 +333,10 @@ pub fn update_radar(
     let angle_az = radar.current.azimuth.to_radians();
     let angle_el = radar.current.elevation.to_radians();
 
-    println!("diff_az: {}, step_az: {}, step_az * dt {}, angle_az: {}", diff_az, step_az, step_az * dt, angle_az);
-    println!("diff_el: {}, step_el: {}, step_el * dt {}, angle_el: {}", diff_el, step_el, step_el * dt, angle_el);
+    if config.print_radar_move_info {
+        println!("diff_az: {}, step_az: {}, step_az * dt {}, angle_az: {}", diff_az, step_az, step_az * dt, angle_az);
+        println!("diff_el: {}, step_el: {}, step_el * dt {}, angle_el: {}", diff_el, step_el, step_el * dt, angle_el);
+    }
 
     for (mut transform, _follow) in query.iter_mut() {
         transform.rotation = Quat::from_rotation_y(-angle_az) * Quat::from_rotation_x(angle_el);
