@@ -6,7 +6,6 @@ use std::str;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
-use crate::config;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -32,6 +31,12 @@ impl Default for RadarState {
 pub struct Radar {
     pub current: RadarState,
     pub target: RadarState,
+    pub azimuth_velocity: f32,
+    pub azimuth_acceleration: f32, 
+    pub max_azimuth_velocity: f32,
+    pub elevation_velocity: f32,
+    pub elevation_acceleration: f32, 
+    pub max_elevation_velocity: f32,
 }
 
 impl Default for Radar {
@@ -39,6 +44,12 @@ impl Default for Radar {
         Self {
             current: RadarState::default(),
             target: RadarState::default(),
+            azimuth_velocity: 0.0,
+            azimuth_acceleration: 10.0,
+            max_azimuth_velocity: 50.0,
+            elevation_velocity: 0.0,
+            elevation_acceleration: 10.0,
+            max_elevation_velocity: 50.0,
         }
     }
 }
@@ -298,8 +309,7 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
 pub fn update_radar(
     mut radar: ResMut<Radar>,
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &FollowOrientation)>,
-    config: Res<config::Config>,
+    mut query: Query<(&mut Transform, &FollowOrientation)>
 ) {
     if radar.target.azimuth == radar.current.azimuth
         && radar.target.elevation == radar.current.elevation
@@ -307,38 +317,63 @@ pub fn update_radar(
         return;
     }
 
-    // Speed in degrees per second.
-    let speed_az = 25.0;
-    let dt = time.delta_secs();
+    let ds = time.delta_secs();
 
-    // Update azimuth.
-    let diff_az = radar.target.azimuth - radar.current.azimuth;
-    let step_az = if diff_az.abs() < speed_az * dt {
-        diff_az
-    } else {
-        diff_az.signum() * speed_az * dt
-    };
-    radar.current.azimuth += step_az;
+    (radar.current.azimuth, radar.azimuth_velocity) = update(
+        radar.current.azimuth, 
+        radar.target.azimuth,
+        radar.azimuth_velocity,
+        radar.azimuth_acceleration, 
+        radar.max_azimuth_velocity, 
+        ds,
+    );
 
-    // Update elevation.
-    let diff_el = radar.target.elevation - radar.current.elevation;
-    let speed_el = 25.0;
-    let step_el = if diff_el.abs() < speed_el * dt {
-        diff_el
-    } else {
-        diff_el.signum() * speed_el * dt
-    };
-    radar.current.elevation += step_el;
+    (radar.current.elevation, radar.elevation_velocity) = update(
+        radar.current.elevation, 
+        radar.target.elevation,
+        radar.elevation_velocity, 
+        radar.elevation_acceleration, 
+        radar.max_elevation_velocity, 
+        ds,
+    );
 
     let angle_az = radar.current.azimuth.to_radians();
     let angle_el = radar.current.elevation.to_radians();
 
-    if config.print_radar_move_info {
-        println!("diff_az: {}, step_az: {}, step_az * dt {}, angle_az: {}", diff_az, step_az, step_az * dt, angle_az);
-        println!("diff_el: {}, step_el: {}, step_el * dt {}, angle_el: {}", diff_el, step_el, step_el * dt, angle_el);
-    }
-
     for (mut transform, _follow) in query.iter_mut() {
         transform.rotation = Quat::from_rotation_y(-angle_az) * Quat::from_rotation_x(angle_el);
     }
+}
+
+pub fn update(
+    current: f32,
+    target: f32,
+    velocity: f32,
+    acceleration: f32,
+    max_velocity: f32,
+    delta_secs: f32,
+) -> (f32, f32) {
+    let mut v = velocity;
+    let mut delta_angle = target - current;
+    if delta_angle > 180.0 {
+        delta_angle -= 360.0;
+    } else if delta_angle < -180.0 {
+        delta_angle += 360.0;
+    }
+    if delta_angle.abs() < 0.01 {
+        return (target, 0.0);
+    }
+    let direction = delta_angle.signum();
+    let distance_to_stop = (v * v) / (2.0 * acceleration);
+    if delta_angle.abs() > distance_to_stop {
+        v += direction * acceleration * delta_secs;
+        v = v.clamp(-max_velocity, max_velocity);
+    } else {
+        v -= direction * acceleration * delta_secs;
+        if v * direction < 0.0 {
+            v = 0.0;
+        }
+    }
+    let new_azimuth = current + v * delta_secs;
+    (new_azimuth, v)
 }
