@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy_panorbit_camera::PanOrbitCamera;
 use rand::Rng;
 use std::f32::consts::PI;
+use crate::config;
 
 #[derive(Component)]
 struct GameCamera;
@@ -12,6 +13,7 @@ pub fn spawn_env(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     asset_server: Res<AssetServer>,
+    config: &Res<config::Config>,
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
@@ -51,8 +53,26 @@ pub fn spawn_env(
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
-    spawn_trees(meshes, materials, commands);
-    spawn_houses(meshes, materials, commands, asset_server);
+    if config.calibrate_panels_on {
+        let texture_handle = asset_server.load("calibration-checkerboard.png");
+
+        commands.spawn((
+            Mesh3d(
+                meshes.add(
+                    Plane3d::default()
+                        .mesh()
+                        .size(13.0, 10.0)
+                        .subdivisions(10),
+                ),
+            ),
+            MeshMaterial3d(materials.add(StandardMaterial {base_color_texture: Some(texture_handle), ..default()})),
+            Transform::from_xyz(0.0, 5.0, -5.0).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+        ));
+        }
+    else {
+        spawn_trees(meshes, materials, commands);
+        spawn_houses(meshes, materials, commands, asset_server);
+    }
 
     commands.spawn((
         Camera3d::default(),
@@ -98,9 +118,9 @@ fn spawn_trees(
 fn rnd_tree_coord() -> f32 {
     let mut rng = rand::rng();
     let random_number: f32 = if rng.random_bool(0.5) {
-        rng.random_range(-25.0..=-2.0)
+        rng.random_range(-50.0..=-5.0)
     } else {
-        rng.random_range(2.0..=25.0)
+        rng.random_range(5.0..=50.0)
     };
     random_number
 }

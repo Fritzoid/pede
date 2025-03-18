@@ -96,6 +96,7 @@ pub fn spawn_radar(
         MeshMaterial3d(radar_mount_mat),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
+
     commands.spawn((
         Mesh3d(radar_pole),
         MeshMaterial3d(radar_pole_mat.clone()),

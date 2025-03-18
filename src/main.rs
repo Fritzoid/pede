@@ -51,7 +51,7 @@ fn setup(
     frame_buffer: Res<stream::FrameBuffer>,
     config: Res<config::Config>,
 ) {
-    env::spawn_env(&mut commands, &mut meshes, &mut materials, asset_server);
+    env::spawn_env(&mut commands, &mut meshes, &mut materials, asset_server, &config);
     let pivot = radar::spawn_radar(&mut meshes, &mut materials, &mut commands);
     let image = radar_cam::spawn_radar_cam(
         meshes,
