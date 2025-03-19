@@ -7,7 +7,8 @@ pub struct Config {
     pub radar_cam_render_width: u32,
     pub radar_cam_render_height: u32,
     pub radar_cam_vertical_fov: f32,
-    pub calibrate_panels_on: bool,
+    pub radar_cam_x_displacement: f32,
+    pub calibrate_panels: (bool, f32),
 }
 
 impl Config {

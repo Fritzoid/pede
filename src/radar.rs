@@ -6,6 +6,7 @@ use std::str;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
+use crate::config;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -61,6 +62,7 @@ pub fn spawn_radar(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     commands: &mut Commands,
+    config: &Res<config::Config>,
 ) -> Entity {
     let radar_mount = meshes.add(Cuboid {
         half_size: Vec3::new(1.0, 0.4, 0.5),
@@ -133,7 +135,7 @@ pub fn spawn_radar(
     pivot.with_child((
         Mesh3d(radar_cam_box.clone()),
         MeshMaterial3d(radar_cam_box_mat.clone()),
-        Transform::from_xyz(1.20, 0.0, -0.1),
+        Transform::from_xyz(config.radar_cam_x_displacement, 0.0, -0.1),
         Visibility::Visible,
     ));
 

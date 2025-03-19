@@ -52,7 +52,7 @@ fn setup(
     config: Res<config::Config>,
 ) {
     env::spawn_env(&mut commands, &mut meshes, &mut materials, asset_server, &config);
-    let pivot = radar::spawn_radar(&mut meshes, &mut materials, &mut commands);
+    let pivot = radar::spawn_radar(&mut meshes, &mut materials, &mut commands, &config);
     let image = radar_cam::spawn_radar_cam(
         meshes,
         &mut materials,

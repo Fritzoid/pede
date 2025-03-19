@@ -1,4 +1,6 @@
 radar_cam_render_width = 2560
 radar_cam_render_height = 1440
-radar_cam_vertical_fov = 26.23
-calibrate_panels_on = true
+radar_cam_vertical_fov = 19.5
+radar_cam_x_displacement = 1.2
+calibrate_panels = [true, 5.0]
+

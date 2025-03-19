@@ -16,7 +16,7 @@ pub fn spawn_radar_cam(
     frame_buffer: Res<stream::FrameBuffer>,
     config: &Res<config::Config>,
 ) -> Handle<Image> {
-    let radar_cam_pos = Vec3::new(1.20, 1.3, 0.0);
+    let radar_cam_pos = Vec3::new(config.radar_cam_x_displacement, 1.3, 0.0);
     let size = Extent3d {
         width: frame_buffer.width,
         height: frame_buffer.height,
