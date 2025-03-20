@@ -54,36 +54,7 @@ pub fn spawn_env(
     ));
 
     if config.calibrate_panels.0 {
-        let texture_handle = asset_server.load("calibration-checkerboard.png");
-        let distance: f32 = config.calibrate_panels.1;
-        let panel_mesh = meshes.add(
-            Plane3d::default()
-                .mesh()
-                .size(10.0, 10.0)
-                .subdivisions(10),
-        );
-        let panel_mat = materials.add(StandardMaterial {base_color_texture: Some(texture_handle), ..default()});
-
-        commands.spawn((
-            Mesh3d(panel_mesh.clone()),
-            MeshMaterial3d(panel_mat.clone()),
-            Transform::from_xyz(0.0, 5.0, -distance).with_rotation(Quat::from_rotation_x(PI / 2.0)),
-        ));
-        commands.spawn((
-            Mesh3d(panel_mesh.clone()),
-            MeshMaterial3d(panel_mat.clone()),
-            Transform::from_xyz(0.0, 5.0, distance).with_rotation(Quat::from_rotation_x(-PI / 2.0) * Quat::from_rotation_y(PI)),
-        ));
-        commands.spawn((
-            Mesh3d(panel_mesh.clone()),
-            MeshMaterial3d(panel_mat.clone()),
-            Transform::from_xyz(distance, 5.0, 0.0).with_rotation(Quat::from_rotation_z(PI / 2.0) * Quat::from_rotation_y(-PI / 2.0)),
-        ));
-        commands.spawn((
-            Mesh3d(panel_mesh.clone()),
-            MeshMaterial3d(panel_mat.clone()),
-            Transform::from_xyz(-distance, 5.0, 0.0).with_rotation(Quat::from_rotation_z(-PI / 2.0) * Quat::from_rotation_y(PI / 2.0)),
-        ));
+        spawn_calibration_panels(commands, meshes, materials, asset_server, &config);
     }
     else {
         spawn_trees(meshes, materials, commands);
@@ -200,4 +171,45 @@ fn spawn_houses(
         MeshMaterial3d(spike_house_mat.clone()),
         Transform::from_xyz(6.0, 0.0, 18.0).with_scale(Vec3::new(1.0, 5.0, 1.0)),
     ));
+}
+
+fn spawn_calibration_panels(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    asset_server: Res<AssetServer>,
+    config: &Res<config::Config>,
+)
+{
+    let texture_handle = asset_server.load("calibration-checkerboard.png");
+    let distance: f32 = config.calibrate_panels.1;
+    let panel_mesh = meshes.add(
+        Plane3d::default()
+            .mesh()
+            .size(distance*2.0, distance*2.0)
+            .subdivisions(10),
+    );
+    let panel_mat = materials.add(StandardMaterial {base_color_texture: Some(texture_handle), ..default()});
+
+    commands.spawn((
+        Mesh3d(panel_mesh.clone()),
+        MeshMaterial3d(panel_mat.clone()),
+        Transform::from_xyz(0.0, distance, -distance).with_rotation(Quat::from_rotation_x(PI / 2.0)),
+    ));
+    commands.spawn((
+        Mesh3d(panel_mesh.clone()),
+        MeshMaterial3d(panel_mat.clone()),
+        Transform::from_xyz(0.0, distance, distance).with_rotation(Quat::from_rotation_x(-PI / 2.0) * Quat::from_rotation_y(PI)),
+    ));
+    commands.spawn((
+        Mesh3d(panel_mesh.clone()),
+        MeshMaterial3d(panel_mat.clone()),
+        Transform::from_xyz(distance, distance, 0.0).with_rotation(Quat::from_rotation_z(PI / 2.0) * Quat::from_rotation_y(-PI / 2.0)),
+    ));
+    commands.spawn((
+        Mesh3d(panel_mesh.clone()),
+        MeshMaterial3d(panel_mat.clone()),
+        Transform::from_xyz(-distance, distance, 0.0).with_rotation(Quat::from_rotation_z(-PI / 2.0) * Quat::from_rotation_y(PI / 2.0)),
+    ));
+
 }
