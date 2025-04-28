@@ -6,10 +6,12 @@ You need rust to build this program. You can find it here https://www.rust-lang.
 
 # Working, building and running
 cargo build --debug
-cargo run --debug 
+
+cargo run --debug
 
 or 
 
 cargo build --release
+
 cargo run --release
 
