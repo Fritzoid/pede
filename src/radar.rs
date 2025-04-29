@@ -1,3 +1,4 @@
+use crate::config;
 use bevy::prelude::*;
 use std::f32::consts::PI;
 use std::io::{Read, Write};
@@ -6,7 +7,6 @@ use std::str;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
-use crate::config;
 
 #[derive(Resource)]
 pub struct CommandReceiver {
@@ -33,10 +33,10 @@ pub struct Radar {
     pub current: RadarState,
     pub target: RadarState,
     pub azimuth_velocity: f32,
-    pub azimuth_acceleration: f32, 
+    pub azimuth_acceleration: f32,
     pub max_azimuth_velocity: f32,
     pub elevation_velocity: f32,
-    pub elevation_acceleration: f32, 
+    pub elevation_acceleration: f32,
     pub max_elevation_velocity: f32,
 }
 
@@ -312,7 +312,7 @@ pub fn handle_commands(mut radar: ResMut<Radar>, cmd_receiver: ResMut<CommandRec
 pub fn update_radar(
     mut radar: ResMut<Radar>,
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &FollowOrientation)>
+    mut query: Query<(&mut Transform, &FollowOrientation)>,
 ) {
     if radar.target.azimuth == radar.current.azimuth
         && radar.target.elevation == radar.current.elevation
@@ -323,20 +323,20 @@ pub fn update_radar(
     let ds = time.delta_secs();
 
     (radar.current.azimuth, radar.azimuth_velocity) = update(
-        radar.current.azimuth, 
+        radar.current.azimuth,
         radar.target.azimuth,
         radar.azimuth_velocity,
-        radar.azimuth_acceleration, 
-        radar.max_azimuth_velocity, 
+        radar.azimuth_acceleration,
+        radar.max_azimuth_velocity,
         ds,
     );
 
     (radar.current.elevation, radar.elevation_velocity) = update(
-        radar.current.elevation, 
+        radar.current.elevation,
         radar.target.elevation,
-        radar.elevation_velocity, 
-        radar.elevation_acceleration, 
-        radar.max_elevation_velocity, 
+        radar.elevation_velocity,
+        radar.elevation_acceleration,
+        radar.max_elevation_velocity,
         ds,
     );
 

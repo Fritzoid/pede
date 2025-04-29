@@ -41,10 +41,12 @@ pub fn spawn_radar_cam(
             order: 1,
             ..default()
         },
-        PerspectiveProjection {
+        Projection::Perspective(PerspectiveProjection {
             fov: config.radar_cam_vertical_fov.to_radians(),
-            ..default()
-        },
+            aspect_ratio: frame_buffer.width as f32 / frame_buffer.height as f32,
+            near: 0.1,
+            far: 1000.0,
+        }),
         RadarCamera,
         Visibility::Visible,
     ));
@@ -65,15 +67,4 @@ pub fn spawn_radar_cam(
         Transform::from_xyz(0.0, 0.3, 0.57).with_rotation(Quat::from_rotation_x(-0.19)),
     ));
     image_handle
-}
-
-pub fn force_projection_update(mut query: Query<&mut PerspectiveProjection, With<RadarCamera>>) {
-    for mut projection in &mut query {
-        *projection = PerspectiveProjection {
-            fov: projection.fov,
-            aspect_ratio: projection.aspect_ratio,
-            near: projection.near,
-            far: projection.far,
-        };
-    }
 }

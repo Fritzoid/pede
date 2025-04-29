@@ -27,7 +27,9 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: false,
+        })
         .add_plugins(PanOrbitCameraPlugin)
         .insert_resource(config)
         .insert_resource(frame_buffer)
@@ -38,7 +40,6 @@ fn main() {
         .add_systems(FixedUpdate, stream::stream_frames)
         .add_systems(Update, radar::handle_commands)
         .add_systems(Update, radar::update_radar)
-        .add_systems(Update, radar_cam::force_projection_update)
         .run();
 }
 
@@ -51,7 +52,13 @@ fn setup(
     frame_buffer: Res<stream::FrameBuffer>,
     config: Res<config::Config>,
 ) {
-    env::spawn_env(&mut commands, &mut meshes, &mut materials, asset_server, &config);
+    env::spawn_env(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        asset_server,
+        &config,
+    );
     let pivot = radar::spawn_radar(&mut meshes, &mut materials, &mut commands, &config);
     let image = radar_cam::spawn_radar_cam(
         meshes,

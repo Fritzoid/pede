@@ -144,8 +144,11 @@ pub fn stream_frames(
 fn save_to_buffer(buffer: Arc<Mutex<Vec<u8>>>) -> impl FnMut(Trigger<ScreenshotCaptured>) {
     move |trigger| {
         let img = trigger.event().deref().clone();
-        let data = &img.data;
-        let mut buffer = buffer.lock().unwrap();
-        buffer.copy_from_slice(data);
+        if let Some(data) = &img.data {
+            let mut buffer = buffer.lock().unwrap();
+            buffer.copy_from_slice(data);
+        } else {
+            eprintln!("No data found in the screenshot.");
+        }
     }
 }
