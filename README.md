@@ -15,3 +15,12 @@ cargo build --release
 
 cargo run --release
 
+# radar-console
+
+you can run the radar-console afterwards with cargo run --release --bin radar-console
+You can then enter commands to move the radar and thereby the camera. 
+ie: azimuth 179 or elevation 35
+azimuth is between 0 and 360 and elevation is between -20 and 90.
+
+
+
