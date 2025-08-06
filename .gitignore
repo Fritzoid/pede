@@ -7,3 +7,8 @@ x64/
 ffmpeg.exe
 mediamtx.exe
 ffplay.exe
+ffprobe.exe
+ffmpeg
+ffplay
+ffprobe
+.DS_Store
