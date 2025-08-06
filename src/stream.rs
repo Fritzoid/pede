@@ -46,11 +46,21 @@ impl FrameBuffer {
 }
 
 pub fn start_stream(commands: &mut Commands, image: Handle<Image>, width: u32, height: u32) {
-    let mut mediamtx = Command::new("mediamtx.exe")
+    // Get the directory where the current executable is located
+    let exe_dir = std::env::current_exe()
+        .expect("Failed to get current executable path")
+        .parent()
+        .expect("Failed to get executable directory")
+        .to_path_buf();
+    
+    let mediamtx_path = exe_dir.join(if cfg!(windows) { "mediamtx.exe" } else { "mediamtx" });
+    let ffmpeg_path = exe_dir.join(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
+    
+    let mut mediamtx = Command::new(&mediamtx_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .expect("Failed to start mediamtx.exe");
+        .expect("Failed to start mediamtx");
 
     thread::sleep(Duration::from_secs(1));
 
@@ -67,7 +77,7 @@ pub fn start_stream(commands: &mut Commands, image: Handle<Image>, width: u32, h
         });
     }
 
-    let mut ffmpeg = Command::new("ffmpeg")
+    let mut ffmpeg = Command::new(&ffmpeg_path)
         .args([
             "-fflags",
             "+genpts",
