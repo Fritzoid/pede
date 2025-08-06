@@ -1,1 +1,0 @@
-./ffmpeg -re -stream_loop -1 -i .\IMG_0213.MP4 -c:v libx264 -preset ultrafast -tune zerolatency -c:a aac -f rtsp rtsp://localhost:8554/live
