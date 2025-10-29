@@ -10,7 +10,10 @@ pub fn ui_system(
     radar_state: Res<radar::Radar>,
     query: Query<&Projection, With<radar_cam::RadarCamera>>,
 ) {
-    let ctx = contexts.ctx_mut();
+    let Ok(ctx) = contexts.ctx_mut() else {
+        println!("Failed to get context");
+        return;
+    };
 
     // Set the background color of the panels to light blue
     ctx.set_visuals(egui::Visuals {

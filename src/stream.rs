@@ -52,10 +52,18 @@ pub fn start_stream(commands: &mut Commands, image: Handle<Image>, width: u32, h
         .parent()
         .expect("Failed to get executable directory")
         .to_path_buf();
-    
-    let mediamtx_path = exe_dir.join(if cfg!(windows) { "mediamtx.exe" } else { "mediamtx" });
-    let ffmpeg_path = exe_dir.join(if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" });
-    
+
+    let mediamtx_path = exe_dir.join(if cfg!(windows) {
+        "mediamtx.exe"
+    } else {
+        "mediamtx"
+    });
+    let ffmpeg_path = exe_dir.join(if cfg!(windows) {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    });
+
     let mut mediamtx = Command::new(&mediamtx_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
