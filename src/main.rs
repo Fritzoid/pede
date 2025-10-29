@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::WindowMode;
-use bevy_egui::EguiPlugin;
+use bevy_egui::{EguiPlugin, EguiPrimaryContextPass};
 use bevy_panorbit_camera::PanOrbitCameraPlugin;
 
 mod config;
@@ -27,16 +27,14 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin {
-            enable_multipass_for_primary_context: false,
-        })
+        .add_plugins(EguiPlugin::default())
         .add_plugins(PanOrbitCameraPlugin)
         .insert_resource(config)
         .insert_resource(frame_buffer)
         .insert_resource(Time::<Fixed>::from_seconds(1.0 / 25.0))
         .insert_resource(radar::Radar::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, ui::ui_system)
+        .add_systems(EguiPrimaryContextPass, ui::ui_system)
         .add_systems(FixedUpdate, stream::stream_frames)
         .add_systems(Update, radar::handle_commands)
         .add_systems(Update, radar::update_radar)

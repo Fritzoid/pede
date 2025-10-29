@@ -1,7 +1,7 @@
 use crate::config;
 use crate::stream;
+use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
-use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 
 #[derive(Component)]
