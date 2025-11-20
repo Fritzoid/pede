@@ -1,0 +1,38 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    runs-on: self-hosted
+
+    container:
+      image: fritzoid/rust-bevy-builder:latest
+
+    steps:
+    - name: Cleanup
+      uses: FraBle/clean-after-action@v1
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build debug
+      run: cargo build --verbose
+
+    - name: Run tests debug
+      run: cargo test --verbose
+    
+    - name: Build release
+      run: cargo build --release --verbose 
+
+    - name: Run tests release
+      run: cargo test --release --verbose
